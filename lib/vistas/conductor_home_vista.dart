@@ -1,28 +1,97 @@
 // lib/vistas/conductor_home_vista.dart
-// Parte 5: Pantalla principal del conductor
+// Busemistas USM v4
+// REGLA: sin tildes, sin enies, sin caracteres especiales.
+// Cambios:
+//   - Auto-completado por matricula (LLPB45 -> Yutong, rojo)
+//   - Geofencing: detecta llegada a < 50m y finaliza viaje automaticamente
+//   - Boton "Abrir abordaje / Recibir estudiantes" post-llegada
+//   - Retorno inteligente: invierte ruta y limpia asientos
+//   - GPS con coordenadas reales La California -> USM
 
 import 'dart:async';
+import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/auth_provider.dart';
+import 'login_vista.dart';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// RUTA SIMULADA: coordenadas reales Caracas
-// La California → Petare → Av. Rómulo Gallegos → Entrada USM
-// ─────────────────────────────────────────────────────────────────────────────
-const List<GeoPoint> _rutaSimulada = [
-  GeoPoint(10.4900, -66.8450), // La California Norte
-  GeoPoint(10.4850, -66.8280), // Av. Francisco de Miranda (entre)
-  GeoPoint(10.4780, -66.8100), // Petare - Entrada
-  GeoPoint(10.4720, -66.7980), // Av. Rómulo Gallegos
-  GeoPoint(10.4680, -66.7850), // Entrada USM Caracas
+const Color _kAzul = Color(0xFF0E004A);
+
+// ── Coordenadas reales del recorrido ────────────────────────────────────────
+const LatLngSimple _coordUSM =
+    LatLngSimple(10.491360068207142, -66.78017873573735);
+const LatLngSimple _coordLaCalif = LatLngSimple(10.483376, -66.819402);
+
+// Ruta real La California -> USM via Autopista F. Fajardo
+const List<GeoPoint> _rutaHaciaUSM = [
+  GeoPoint(10.483376, -66.819402),
+  GeoPoint(10.484200, -66.816800),
+  GeoPoint(10.485100, -66.813200),
+  GeoPoint(10.486300, -66.808500),
+  GeoPoint(10.487500, -66.803200),
+  GeoPoint(10.488600, -66.798700),
+  GeoPoint(10.489500, -66.794300),
+  GeoPoint(10.490200, -66.789100),
+  GeoPoint(10.491360, -66.780178),
 ];
 
-// ─────────────────────────────────────────────────────────────────────────────
-// VISTA PRINCIPAL
-// ─────────────────────────────────────────────────────────────────────────────
+final List<GeoPoint> _rutaHaciaLaCalif = _rutaHaciaUSM.reversed.toList();
+
+const List<String> _etiquetasHaciaUSM = [
+  'Estacion La California',
+  'Av. Principal La California',
+  'Autopista F. Fajardo',
+  'Distribuidor El Recreo',
+  'Paso desnivel Chuao',
+  'Av. Rio de Janeiro',
+  'Sector La Florencia',
+  'Entrada La Florencia',
+  'USM Sede La Florencia - Destino',
+];
+
+// Umbral de geofencing en metros
+const double kUmbralLlegadaMetros = 50.0;
+
+// ── Mapa de perfil de camionetas por matricula ───────────────────────────────
+// Cuando el conductor selecciona la matricula, modelo y color se autocompletan.
+const Map<String, _PerfilCamioneta> kPerfilesMatricula = {
+  'LLPB45': _PerfilCamioneta(modelo: 'Yutong', color: 'rojo'),
+  'ABCD12': _PerfilCamioneta(modelo: 'JAC', color: 'azul'),
+  'WXYZ99': _PerfilCamioneta(modelo: 'Zhongtong', color: 'blanco'),
+  'MNOP67': _PerfilCamioneta(modelo: 'Higer', color: 'amarillo'),
+};
+
+class _PerfilCamioneta {
+  final String modelo;
+  final String color;
+  const _PerfilCamioneta({required this.modelo, required this.color});
+}
+
+// Helper simple para coordenadas (sin depender de latlong2 en el conductor)
+class LatLngSimple {
+  final double lat;
+  final double lng;
+  const LatLngSimple(this.lat, this.lng);
+}
+
+// Mapa de 24 asientos vacios para reset
+Map<String, dynamic> _asientosVacios24() {
+  final Map<String, dynamic> m = {};
+  for (int i = 1; i <= 24; i++) {
+    m['$i'] = {
+      'ocupado': false,
+      'cedula_pasajero': '',
+      'nombre_pasajero': '',
+      'estado_pago': '',
+    };
+  }
+  return m;
+}
+
+// ── VISTA PRINCIPAL ──────────────────────────────────────────────────────────
 
 class ConductorHomeVista extends StatefulWidget {
   const ConductorHomeVista({super.key});
@@ -34,17 +103,31 @@ class ConductorHomeVista extends StatefulWidget {
 class _ConductorHomeVistaState extends State<ConductorHomeVista> {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
+  // Configuracion de la unidad
+  bool _configurado = false;
+  String? _matriculaSeleccionada;
+  bool _sentidoHaciaUSM = true;
+
   bool _rutaActiva = false;
   bool _simulando = false;
   int _pasoSimulacion = 0;
   Timer? _timerSimulacion;
+  bool _emergenciaActiva = false;
+  bool _llegadaDetectada = false; // true cuando el geofence disparo
 
-  // El ID de camioneta viene del campo `camioneta_asignada` del conductor
-  // en `lista_oficial_conductores`. Si no está, fallback a 'camioneta_01'.
-  String get _camionetaId {
-    final auth = context.read<AuthProvider>();
-    return auth.camionetaAsignada ?? 'camioneta_01';
-  }
+  String get _camionetaId =>
+      context.read<AuthProvider>().camionetaAsignada ?? 'camioneta_01';
+
+  List<GeoPoint> get _rutaActual =>
+      _sentidoHaciaUSM ? _rutaHaciaUSM : _rutaHaciaLaCalif;
+
+  List<String> get _etiquetasActuales => _sentidoHaciaUSM
+      ? _etiquetasHaciaUSM
+      : _etiquetasHaciaUSM.reversed.toList();
+
+  // Coordenadas del destino segun sentido
+  LatLngSimple get _coordDestino =>
+      _sentidoHaciaUSM ? _coordUSM : _coordLaCalif;
 
   @override
   void dispose() {
@@ -52,7 +135,45 @@ class _ConductorHomeVistaState extends State<ConductorHomeVista> {
     super.dispose();
   }
 
-  // ── Activar / desactivar ruta ────────────────────────────────────
+  // ── Guardar configuracion con auto-completado por matricula ──────
+  Future<void> _guardarConfiguracion() async {
+    if (_matriculaSeleccionada == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Selecciona la matricula de la unidad.'),
+        backgroundColor: Colors.orange,
+      ));
+      return;
+    }
+
+    final perfil = kPerfilesMatricula[_matriculaSeleccionada!];
+    final destino = _sentidoHaciaUSM ? 'Hacia la USM' : 'Hacia La California';
+
+    try {
+      await _db.collection('camionetas').doc(_camionetaId).set({
+        'modelo': perfil?.modelo ?? 'Sin modelo',
+        'color': perfil?.color ?? 'Sin color',
+        'patente': _matriculaSeleccionada,
+        'destino': destino,
+        'estado': 'disponible',
+        'activa': false,
+        'asientos': _asientosVacios24(),
+        'latitud': _rutaActual.first.latitude,
+        'longitud': _rutaActual.first.longitude,
+        'ubicacion': _rutaActual.first,
+        'chofer': context.read<AuthProvider>().nombreCompleto ?? 'Conductor',
+        'trafico_denso': false,
+      }, SetOptions(merge: true));
+
+      setState(() {
+        _configurado = true;
+        _llegadaDetectada = false;
+      });
+    } catch (e) {
+      _mostrarError('Error al guardar configuracion: $e');
+    }
+  }
+
+  // ── Toggle ruta ──────────────────────────────────────────────────
   Future<void> _toggleRuta(bool valor) async {
     try {
       await _db.collection('camionetas').doc(_camionetaId).update({
@@ -61,131 +182,571 @@ class _ConductorHomeVistaState extends State<ConductorHomeVista> {
       });
       setState(() {
         _rutaActiva = valor;
-        // Detener simulación si se apaga la ruta
         if (!valor) _detenerSimulacion();
       });
     } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error al cambiar estado de ruta: $e'),
-          backgroundColor: Theme.of(context).colorScheme.error,
-        ),
-      );
+      _mostrarError('Error al cambiar estado: $e');
     }
   }
 
-  // ── Iniciar simulación GPS ───────────────────────────────────────
+  // ── Simulacion GPS con geofencing ────────────────────────────────
   void _iniciarSimulacion() {
     if (_simulando) {
       _detenerSimulacion();
       return;
     }
-
     setState(() {
       _simulando = true;
       _pasoSimulacion = 0;
+      _llegadaDetectada = false;
     });
+    _escribirUbicacion(0);
 
-    // Escribir primer punto inmediatamente
-    _escribirUbicacion(_pasoSimulacion);
-
-    _timerSimulacion = Timer.periodic(const Duration(seconds: 3), (timer) {
-      _pasoSimulacion++;
-
-      if (_pasoSimulacion >= _rutaSimulada.length) {
-        // Llegó al destino — reiniciar desde el principio (loop)
-        _pasoSimulacion = 0;
+    _timerSimulacion =
+        Timer.periodic(const Duration(seconds: 5), (timer) async {
+      final siguiente = _pasoSimulacion + 1;
+      if (siguiente >= _rutaActual.length) {
+        timer.cancel();
+        setState(() => _simulando = false);
+        return;
       }
+      setState(() => _pasoSimulacion = siguiente);
+      await _escribirUbicacion(siguiente);
 
-      _escribirUbicacion(_pasoSimulacion);
+      // Verificar geofencing
+      await _verificarLlegada(siguiente);
     });
   }
 
-  Future<void> _escribirUbicacion(int paso) async {
+  // Verifica si la posicion actual esta dentro del umbral del destino
+  Future<void> _verificarLlegada(int paso) async {
+    if (_llegadaDetectada) return;
+    final pos = _rutaActual[paso];
+    final distanciaMetros = Geolocator.distanceBetween(
+      pos.latitude,
+      pos.longitude,
+      _coordDestino.lat,
+      _coordDestino.lng,
+    );
+
+    if (distanciaMetros <= kUmbralLlegadaMetros) {
+      _llegadaDetectada = true;
+      _timerSimulacion?.cancel();
+      setState(() => _simulando = false);
+      await _llegadaAutomatica();
+    }
+  }
+
+  // Dispara cuando el geofence detecta llegada
+  Future<void> _llegadaAutomatica() async {
     try {
       await _db.collection('camionetas').doc(_camionetaId).update({
-        'ubicacion': _rutaSimulada[paso],
+        'estado': 'terminado',
+        'activa': false,
       });
+      setState(() => _rutaActiva = false);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(
+            'Has llegado a tu destino: ${_sentidoHaciaUSM ? "USM" : "La California"}!'),
+        backgroundColor: Colors.green,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 5),
+      ));
     } catch (e) {
-      debugPrint('Error simulación GPS: $e');
+      _mostrarError('Error al registrar llegada: $e');
     }
   }
 
   void _detenerSimulacion() {
     _timerSimulacion?.cancel();
-    _timerSimulacion = null;
-    setState(() {
-      _simulando = false;
-      _pasoSimulacion = 0;
-    });
+    setState(() => _simulando = false);
   }
 
-  // ── Cerrar sesión ────────────────────────────────────────────────
-  Future<void> _cerrarSesion(BuildContext context) async {
-    _detenerSimulacion();
-    // Desactivar ruta al salir
+  Future<void> _escribirUbicacion(int paso) async {
+    if (paso >= _rutaActual.length) return;
     try {
       await _db.collection('camionetas').doc(_camionetaId).update({
-        'activa': false,
-        'estado': 'disponible',
+        'latitud': _rutaActual[paso].latitude,
+        'longitud': _rutaActual[paso].longitude,
+        'ubicacion': _rutaActual[paso],
+        'ultimo_update': FieldValue.serverTimestamp(),
       });
-    } catch (_) {}
-    if (!context.mounted) return;
-    context.read<AuthProvider>().cerrarSesion();
-    Navigator.of(context).popUntil((route) => route.isFirst);
+    } catch (e) {
+      debugPrint('GPS write error: $e');
+    }
   }
 
-  // ── Build ────────────────────────────────────────────────────────
+  // ── Abrir abordaje / Retorno inteligente ─────────────────────────
+  Future<void> _abrirAbordajeRegreso() async {
+    // Invertir sentido y limpiar asientos
+    final nuevoSentido = !_sentidoHaciaUSM;
+    final nuevoDestino = nuevoSentido ? 'Hacia la USM' : 'Hacia La California';
+
+    try {
+      await _db.collection('camionetas').doc(_camionetaId).update({
+        'destino': nuevoDestino,
+        'estado': 'disponible',
+        'activa': false,
+        'asientos': _asientosVacios24(),
+        'latitud':
+            (nuevoSentido ? _rutaHaciaUSM : _rutaHaciaLaCalif).first.latitude,
+        'longitud':
+            (nuevoSentido ? _rutaHaciaUSM : _rutaHaciaLaCalif).first.longitude,
+        'ubicacion': (nuevoSentido ? _rutaHaciaUSM : _rutaHaciaLaCalif).first,
+      });
+
+      setState(() {
+        _sentidoHaciaUSM = nuevoSentido;
+        _pasoSimulacion = 0;
+        _llegadaDetectada = false;
+        _rutaActiva = false;
+      });
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(
+            'Abordaje abierto. Nuevo destino: $nuevoDestino. 24 asientos disponibles.'),
+        backgroundColor: Colors.green,
+        behavior: SnackBarBehavior.floating,
+      ));
+    } catch (e) {
+      _mostrarError('Error al abrir abordaje: $e');
+    }
+  }
+
+  // ── Emergencia ───────────────────────────────────────────────────
+  void _mostrarEmergenciaSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (_) => _BottomSheetEmergenciaConductor(
+        emergenciaActiva: _emergenciaActiva,
+        onEmergencia: (tipo) async {
+          Navigator.pop(context);
+          await _ejecutarEmergencia(tipo);
+        },
+        onResolver: () async {
+          Navigator.pop(context);
+          await _resolverEmergencia();
+        },
+      ),
+    );
+  }
+
+  Future<void> _ejecutarEmergencia(String tipo) async {
+    try {
+      await _db.collection('camionetas').doc(_camionetaId).update({
+        'estado':
+            tipo == 'Colision/Choque vial' ? 'fuera_de_servicio' : 'emergencia',
+        'tipo_emergencia': tipo,
+        'ts_emergencia': FieldValue.serverTimestamp(),
+      });
+      setState(() => _emergenciaActiva = true);
+
+      if (tipo == 'Colision/Choque vial') {
+        await _transferirRespaldo();
+      }
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Emergencia declarada: $tipo'),
+        backgroundColor: Colors.red.shade700,
+        behavior: SnackBarBehavior.floating,
+      ));
+    } catch (e) {
+      _mostrarError('Error al activar emergencia: $e');
+    }
+  }
+
+  Future<void> _transferirRespaldo() async {
+    try {
+      final snap = await _db.collection('camionetas').doc(_camionetaId).get();
+      if (!snap.exists) return;
+      final data = snap.data()!;
+      final asientos = data['asientos'] as Map<String, dynamic>? ?? {};
+      final destino = data['destino'] as String? ?? 'Hacia la USM';
+
+      final batch = _db.batch();
+      final backupRef = _db.collection('camionetas').doc('unidad_backup');
+      batch.set(
+        backupRef,
+        {
+          'modelo': 'Unidad de Respaldo',
+          'color': 'blanco',
+          'patente': 'RESPALDO',
+          'chofer': 'Sistema - Asignacion Automatica',
+          'estado': 'en_camino',
+          'destino': destino,
+          'latitud': _rutaActual.first.latitude,
+          'longitud': _rutaActual.first.longitude,
+          'ubicacion': _rutaActual.first,
+          'asientos': asientos,
+          'es_respaldo': true,
+          'unidad_reemplazada': _camionetaId,
+          'ts_activacion': FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
+      await batch.commit();
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Unidad de respaldo activada. Recogiendo pasajeros.'),
+        backgroundColor: Colors.blue,
+        behavior: SnackBarBehavior.floating,
+      ));
+    } catch (e) {
+      debugPrint('Error respaldo: $e');
+    }
+  }
+
+  Future<void> _resolverEmergencia() async {
+    try {
+      final batch = _db.batch();
+      final camRef = _db.collection('camionetas').doc(_camionetaId);
+      batch.update(camRef, {
+        'estado': 'disponible',
+        'tipo_emergencia': FieldValue.delete(),
+        'ts_emergencia': FieldValue.delete(),
+      });
+      await batch.commit();
+      setState(() => _emergenciaActiva = false);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Emergencia resuelta. Unidad disponible.'),
+        backgroundColor: Colors.green,
+      ));
+    } catch (e) {
+      _mostrarError('Error al resolver emergencia: $e');
+    }
+  }
+
+  // ── Fin manual del viaje ─────────────────────────────────────────
+  Future<void> _finalizarViaje() async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Finalizar Viaje?'),
+        content: const Text(
+            'Libera todos los asientos y pone la unidad como disponible.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancelar')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: _kAzul),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Finalizar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmar != true) return;
+
+    try {
+      final batch = _db.batch();
+      final camRef = _db.collection('camionetas').doc(_camionetaId);
+      batch.update(camRef, {
+        'asientos': _asientosVacios24(),
+        'estado': 'terminado',
+        'activa': false,
+      });
+      await batch.commit();
+      setState(() {
+        _rutaActiva = false;
+        _simulando = false;
+        _llegadaDetectada = true;
+      });
+      _timerSimulacion?.cancel();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Viaje finalizado. Asientos liberados.'),
+        backgroundColor: Colors.green,
+        behavior: SnackBarBehavior.floating,
+      ));
+    } catch (e) {
+      _mostrarError('Error al finalizar viaje: $e');
+    }
+  }
+
+  void _mostrarError(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(msg), backgroundColor: Colors.red));
+  }
+
+  void _cerrarSesion() {
+    _detenerSimulacion();
+    context.read<AuthProvider>().cerrarSesion();
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginVista()),
+      (_) => false,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
-    final colors = Theme.of(context).colorScheme;
-    final nombre = auth.nombreCompleto ?? 'Conductor';
-    final camId = auth.camionetaAsignada ?? 'camioneta_01';
+    final primerNombre = (auth.nombreCompleto ?? 'Conductor').split(' ').first;
+
+    if (!_configurado) {
+      return _PantallaConfiguracion(
+        primerNombre: primerNombre,
+        matriculaSeleccionada: _matriculaSeleccionada,
+        sentidoHaciaUSM: _sentidoHaciaUSM,
+        onMatriculaChanged: (v) => setState(() => _matriculaSeleccionada = v),
+        onSentidoChanged: (v) => setState(() => _sentidoHaciaUSM = v),
+        onConfirmar: _guardarConfiguracion,
+        onCerrarSesion: _cerrarSesion,
+        perfilesMatricula: kPerfilesMatricula,
+      );
+    }
+
+    final perfil = kPerfilesMatricula[_matriculaSeleccionada ?? ''];
 
     return Scaffold(
+      backgroundColor: const Color(0xFFF5F5F5),
       body: SafeArea(
-        child: Column(
-          children: [
-            // ── Encabezado ─────────────────────────────────────────
-            _EncabezadoConductor(
-              nombre: nombre,
-              camionetaId: camId,
-              onCerrarSesion: () => _cerrarSesion(context),
-            ),
-
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // ── Estado de ruta ──────────────────────────────
-                    _TarjetaEstadoRuta(
-                      rutaActiva: _rutaActiva,
-                      onToggle: _toggleRuta,
-                    ),
-                    const SizedBox(height: 16),
-
-                    // ── Simulador GPS ───────────────────────────────
-                    _TarjetaSimulador(
-                      rutaActiva: _rutaActiva,
-                      simulando: _simulando,
-                      pasoActual: _pasoSimulacion,
-                      totalPasos: _rutaSimulada.length,
-                      onIniciar: _iniciarSimulacion,
-                    ),
-                    const SizedBox(height: 16),
-
-                    // ── Contador asientos (stream) ──────────────────
-                    _TarjetaAsientosStream(camionetaId: camId),
-                    const SizedBox(height: 16),
-
-                    // ── Lista de paradas de la ruta ─────────────────
-                    const _TarjetaParadas(),
-                  ],
+        child: Column(children: [
+          _HeaderConductor(
+            primerNombre: primerNombre,
+            emergenciaActiva: _emergenciaActiva,
+            onEmergencia: _mostrarEmergenciaSheet,
+            onLogout: _cerrarSesion,
+          ),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.all(14),
+              children: [
+                // Info de la unidad configurada
+                _TarjetaUnidadConfigurada(
+                  modelo: perfil?.modelo ?? '',
+                  colorUnidad: perfil?.color ?? '',
+                  matricula: _matriculaSeleccionada ?? '',
+                  destino:
+                      _sentidoHaciaUSM ? 'Hacia la USM' : 'Hacia La California',
                 ),
+                const SizedBox(height: 12),
+
+                // Panel GPS
+                _TarjetaGPS(
+                  rutaActiva: _rutaActiva,
+                  simulando: _simulando,
+                  pasoSimulacion: _pasoSimulacion,
+                  totalPasos: _rutaActual.length,
+                  etiquetaActual: _pasoSimulacion < _etiquetasActuales.length
+                      ? _etiquetasActuales[_pasoSimulacion]
+                      : 'Destino alcanzado',
+                  llegadaDetectada: _llegadaDetectada,
+                  onToggleRuta: _toggleRuta,
+                  onToggleSimulacion: _iniciarSimulacion,
+                ),
+                const SizedBox(height: 12),
+
+                // Boton de abordaje/retorno si llego
+                if (_llegadaDetectada)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: FilledButton.icon(
+                      onPressed: _abrirAbordajeRegreso,
+                      icon: const Icon(Icons.door_sliding_rounded),
+                      label: const Text('Abrir abordaje / Recibir estudiantes'),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: Colors.teal.shade700,
+                        minimumSize: const Size.fromHeight(52),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14)),
+                      ),
+                    ),
+                  ),
+
+                // Lista de pasajeros
+                _TarjetaPasajeros(camionetaId: _camionetaId, db: _db),
+                const SizedBox(height: 12),
+
+                // Boton finalizar viaje (solo si no llego aun)
+                if (!_llegadaDetectada)
+                  FilledButton.icon(
+                    onPressed: _rutaActiva ? _finalizarViaje : null,
+                    icon: const Icon(Icons.flag_rounded),
+                    label: const Text('Finalizar Viaje'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: Colors.green.shade700,
+                      minimumSize: const Size.fromHeight(52),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14)),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PANTALLA DE CONFIGURACION
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _PantallaConfiguracion extends StatelessWidget {
+  final String primerNombre;
+  final String? matriculaSeleccionada;
+  final bool sentidoHaciaUSM;
+  final void Function(String?) onMatriculaChanged;
+  final void Function(bool) onSentidoChanged;
+  final VoidCallback onConfirmar;
+  final VoidCallback onCerrarSesion;
+  final Map<String, _PerfilCamioneta> perfilesMatricula;
+
+  const _PantallaConfiguracion({
+    required this.primerNombre,
+    required this.matriculaSeleccionada,
+    required this.sentidoHaciaUSM,
+    required this.onMatriculaChanged,
+    required this.onSentidoChanged,
+    required this.onConfirmar,
+    required this.onCerrarSesion,
+    required this.perfilesMatricula,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final perfilActual = perfilesMatricula[matriculaSeleccionada ?? ''];
+
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        title: const Text('Configurar Unidad'),
+        backgroundColor: _kAzul,
+        foregroundColor: Colors.white,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout_rounded),
+            onPressed: onCerrarSesion,
+          ),
+        ],
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Bienvenida
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF0E004A), Color(0xFF3A0CA3)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Row(children: [
+                const Icon(Icons.drive_eta_rounded,
+                    color: Colors.white, size: 36),
+                const SizedBox(width: 14),
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Hola, $primerNombre',
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold)),
+                  const Text('Configura tu unidad antes de iniciar',
+                      style: TextStyle(color: Colors.white70, fontSize: 12)),
+                ]),
+              ]),
+            ),
+            const SizedBox(height: 24),
+
+            // Selector de matricula
+            const Text('Matricula / Placa',
+                style: TextStyle(
+                    fontWeight: FontWeight.w600, fontSize: 13, color: _kAzul)),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<String>(
+              value: matriculaSeleccionada,
+              decoration: InputDecoration(
+                hintText: 'Selecciona la matricula',
+                border:
+                    OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              ),
+              items: perfilesMatricula.keys
+                  .map((m) => DropdownMenuItem(value: m, child: Text(m)))
+                  .toList(),
+              onChanged: onMatriculaChanged,
+            ),
+            const SizedBox(height: 12),
+
+            // Auto-completado visual
+            if (perfilActual != null)
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.green.shade50,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.green.shade300),
+                ),
+                child: Row(children: [
+                  Icon(Icons.auto_awesome,
+                      color: Colors.green.shade700, size: 18),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Modelo: ${perfilActual.modelo}  |  Color: ${perfilActual.color}',
+                    style: TextStyle(
+                        color: Colors.green.shade800,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13),
+                  ),
+                ]),
+              ),
+            const SizedBox(height: 16),
+
+            // Selector de sentido
+            const Text('Sentido de la Ruta',
+                style: TextStyle(
+                    fontWeight: FontWeight.w600, fontSize: 13, color: _kAzul)),
+            const SizedBox(height: 8),
+            Row(children: [
+              Expanded(
+                child: _BotonSentido(
+                  label: 'Hacia la USM',
+                  sublabel: 'La California -> USM',
+                  icono: Icons.school_rounded,
+                  seleccionado: sentidoHaciaUSM,
+                  onTap: () => onSentidoChanged(true),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _BotonSentido(
+                  label: 'Regreso',
+                  sublabel: 'USM -> La California',
+                  icono: Icons.directions_bus_rounded,
+                  seleccionado: !sentidoHaciaUSM,
+                  onTap: () => onSentidoChanged(false),
+                ),
+              ),
+            ]),
+            const SizedBox(height: 28),
+
+            FilledButton.icon(
+              onPressed: onConfirmar,
+              icon: const Icon(Icons.play_arrow_rounded),
+              label: const Text('Iniciar Servicio'),
+              style: FilledButton.styleFrom(
+                backgroundColor: Colors.green.shade700,
+                minimumSize: const Size.fromHeight(54),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14)),
               ),
             ),
           ],
@@ -195,650 +756,624 @@ class _ConductorHomeVistaState extends State<ConductorHomeVista> {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// ENCABEZADO
-// ─────────────────────────────────────────────────────────────────────────────
+class _BotonSentido extends StatelessWidget {
+  final String label;
+  final String sublabel;
+  final IconData icono;
+  final bool seleccionado;
+  final VoidCallback onTap;
 
-class _EncabezadoConductor extends StatelessWidget {
-  final String nombre;
-  final String camionetaId;
-  final VoidCallback onCerrarSesion;
-
-  const _EncabezadoConductor({
-    required this.nombre,
-    required this.camionetaId,
-    required this.onCerrarSesion,
+  const _BotonSentido({
+    required this.label,
+    required this.sublabel,
+    required this.icono,
+    required this.seleccionado,
+    required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-
-    return Container(
-      padding: const EdgeInsets.fromLTRB(20, 16, 12, 16),
-      decoration: BoxDecoration(
-        color: colors.primaryContainer,
-        boxShadow: [
-          BoxShadow(
-              color: colors.shadow.withOpacity(0.08),
-              blurRadius: 8,
-              offset: const Offset(0, 2)),
-        ],
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: seleccionado ? _kAzul : Colors.grey.shade100,
+          borderRadius: BorderRadius.circular(12),
+          border:
+              Border.all(color: seleccionado ? _kAzul : Colors.grey.shade300),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icono,
+                color: seleccionado ? Colors.white : Colors.grey.shade600,
+                size: 22),
+            const SizedBox(height: 6),
+            Text(label,
+                style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                    color: seleccionado ? Colors.white : Colors.grey.shade800)),
+            Text(sublabel,
+                style: TextStyle(
+                    fontSize: 10,
+                    color:
+                        seleccionado ? Colors.white70 : Colors.grey.shade600)),
+          ],
+        ),
       ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 24,
-            backgroundColor: colors.primary,
-            child: const Icon(Icons.drive_eta, color: Colors.white, size: 22),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HEADER CONDUCTOR
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _HeaderConductor extends StatelessWidget {
+  final String primerNombre;
+  final bool emergenciaActiva;
+  final VoidCallback onEmergencia;
+  final VoidCallback onLogout;
+
+  const _HeaderConductor({
+    required this.primerNombre,
+    required this.emergenciaActiva,
+    required this.onEmergencia,
+    required this.onLogout,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      color: _kAzul,
+      child: Row(children: [
+        const Icon(Icons.directions_bus_rounded,
+            color: Colors.white70, size: 24),
+        const SizedBox(width: 10),
+        Expanded(
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Hola, $primerNombre!',
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold)),
+            const Text('Panel del Conductor',
+                style: TextStyle(color: Colors.white60, fontSize: 11)),
+          ]),
+        ),
+        Opacity(
+          opacity: 0.85,
+          child: GestureDetector(
+            onTap: onEmergencia,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+              decoration: BoxDecoration(
+                color:
+                    emergenciaActiva ? Colors.red : Colors.red.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.red.shade300),
+              ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.warning_rounded,
+                    color:
+                        emergenciaActiva ? Colors.white : Colors.red.shade200,
+                    size: 18),
+                const SizedBox(width: 4),
+                Text(
+                  emergenciaActiva ? 'EMERGENCIA' : 'SOS',
+                  style: TextStyle(
+                      color:
+                          emergenciaActiva ? Colors.white : Colors.red.shade200,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold),
+                ),
+              ]),
+            ),
           ),
-          const SizedBox(width: 12),
+        ),
+        const SizedBox(width: 6),
+        IconButton(
+          icon: const Icon(Icons.logout_rounded, color: Colors.white70),
+          onPressed: onLogout,
+        ),
+      ]),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TARJETA UNIDAD CONFIGURADA
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _TarjetaUnidadConfigurada extends StatelessWidget {
+  final String modelo;
+  final String colorUnidad;
+  final String matricula;
+  final String destino;
+
+  const _TarjetaUnidadConfigurada({
+    required this.modelo,
+    required this.colorUnidad,
+    required this.matricula,
+    required this.destino,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: _kAzul.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.directions_bus_rounded,
+                color: _kAzul, size: 28),
+          ),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(nombre,
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleMedium
-                        ?.copyWith(fontWeight: FontWeight.bold),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis),
-                Text(
-                  camionetaId,
-                  style: TextStyle(
-                      fontSize: 12,
-                      color: colors.primary,
-                      fontWeight: FontWeight.w600),
-                ),
+                Text('$modelo - $matricula',
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                        color: _kAzul)),
+                Text('Color: $colorUnidad  |  $destino',
+                    style:
+                        const TextStyle(fontSize: 12, color: Colors.black54)),
               ],
             ),
           ),
-          IconButton(
-            onPressed: onCerrarSesion,
-            icon: const Icon(Icons.logout_rounded),
-            tooltip: 'Cerrar sesión',
-            style: IconButton.styleFrom(foregroundColor: colors.error),
-          ),
+        ]),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TARJETA GPS
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _TarjetaGPS extends StatelessWidget {
+  final bool rutaActiva;
+  final bool simulando;
+  final int pasoSimulacion;
+  final int totalPasos;
+  final String etiquetaActual;
+  final bool llegadaDetectada;
+  final void Function(bool) onToggleRuta;
+  final VoidCallback onToggleSimulacion;
+
+  const _TarjetaGPS({
+    required this.rutaActiva,
+    required this.simulando,
+    required this.pasoSimulacion,
+    required this.totalPasos,
+    required this.etiquetaActual,
+    required this.llegadaDetectada,
+    required this.onToggleRuta,
+    required this.onToggleSimulacion,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              const Icon(Icons.gps_fixed_rounded, color: _kAzul, size: 20),
+              const SizedBox(width: 8),
+              const Expanded(
+                  child: Text('Control de Ruta GPS',
+                      style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                          color: _kAzul))),
+              if (!llegadaDetectada)
+                Switch(
+                    value: rutaActiva,
+                    activeColor: _kAzul,
+                    onChanged: onToggleRuta),
+            ]),
+            const SizedBox(height: 8),
+            if (llegadaDetectada)
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.green.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.green.shade300),
+                ),
+                child: const Row(children: [
+                  Icon(Icons.flag_rounded, color: Colors.green),
+                  SizedBox(width: 8),
+                  Text('Destino alcanzado. Viaje completado.',
+                      style: TextStyle(
+                          color: Colors.green, fontWeight: FontWeight.w600)),
+                ]),
+              )
+            else ...[
+              Text(
+                rutaActiva
+                    ? 'Ruta ACTIVA - transmitiendo GPS'
+                    : 'Ruta inactiva',
+                style: TextStyle(
+                    color: rutaActiva ? Colors.green.shade700 : Colors.grey,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500),
+              ),
+              if (rutaActiva) ...[
+                const SizedBox(height: 12),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: LinearProgressIndicator(
+                    value:
+                        totalPasos > 0 ? pasoSimulacion / (totalPasos - 1) : 0,
+                    backgroundColor: Colors.grey.shade200,
+                    color: _kAzul,
+                    minHeight: 6,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text('Ubicacion: $etiquetaActual',
+                    style:
+                        const TextStyle(fontSize: 12, color: Colors.black54)),
+                const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  onPressed: onToggleSimulacion,
+                  icon: Icon(simulando
+                      ? Icons.stop_circle_outlined
+                      : Icons.play_circle_outlined),
+                  label: Text(simulando
+                      ? 'Detener simulacion GPS'
+                      : 'Iniciar simulacion GPS'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: _kAzul,
+                    side: const BorderSide(color: _kAzul),
+                    minimumSize: const Size.fromHeight(40),
+                  ),
+                ),
+              ],
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TARJETA PASAJEROS
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _TarjetaPasajeros extends StatelessWidget {
+  final String camionetaId;
+  final FirebaseFirestore db;
+  const _TarjetaPasajeros({required this.camionetaId, required this.db});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              const Icon(Icons.people_rounded, color: _kAzul, size: 20),
+              const SizedBox(width: 8),
+              const Text('Pasajeros a bordo',
+                  style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                      color: _kAzul)),
+            ]),
+            const SizedBox(height: 12),
+            StreamBuilder<DocumentSnapshot>(
+              stream: db.collection('camionetas').doc(camionetaId).snapshots(),
+              builder: (context, snap) {
+                if (!snap.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (!snap.data!.exists) {
+                  return const Text('Sin datos.',
+                      style: TextStyle(color: Colors.grey));
+                }
+                final data = snap.data!.data() as Map<String, dynamic>;
+                final asientos =
+                    (data['asientos'] as Map<String, dynamic>?) ?? {};
+                final pasajeros = asientos.entries
+                    .where((e) =>
+                        e.value is Map && (e.value as Map)['ocupado'] == true)
+                    .toList();
+
+                if (pasajeros.isEmpty) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: Center(
+                        child: Text('Sin pasajeros aun.',
+                            style: TextStyle(color: Colors.grey))),
+                  );
+                }
+
+                return Column(
+                  children: pasajeros.map((entry) {
+                    final v = entry.value as Map;
+                    return _FilaPasajero(
+                      asiento: entry.key,
+                      nombre: v['nombre_pasajero'] as String? ?? '-',
+                      cedula: v['cedula_pasajero'] as String? ?? '-',
+                      estadoPago: v['estado_pago'] as String? ?? 'pendiente',
+                      camionetaId: camionetaId,
+                      db: db,
+                    );
+                  }).toList(),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FilaPasajero extends StatefulWidget {
+  final String asiento;
+  final String nombre;
+  final String cedula;
+  final String estadoPago;
+  final String camionetaId;
+  final FirebaseFirestore db;
+
+  const _FilaPasajero({
+    required this.asiento,
+    required this.nombre,
+    required this.cedula,
+    required this.estadoPago,
+    required this.camionetaId,
+    required this.db,
+  });
+
+  @override
+  State<_FilaPasajero> createState() => _FilaPasajeroState();
+}
+
+class _FilaPasajeroState extends State<_FilaPasajero> {
+  bool _procesando = false;
+
+  Future<void> _confirmarPago() async {
+    setState(() => _procesando = true);
+    try {
+      await widget.db
+          .collection('camionetas')
+          .doc(widget.camionetaId)
+          .update({'asientos.${widget.asiento}.estado_pago': 'confirmado'});
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
+    } finally {
+      if (mounted) setState(() => _procesando = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isPagado = widget.estadoPago == 'pagado' ||
+        widget.estadoPago == 'confirmado' ||
+        widget.estadoPago == 'mensualidad';
+    final isPendiente = widget.estadoPago == 'pendiente_pago' ||
+        widget.estadoPago == 'en_puerta';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: isPagado
+            ? Colors.green.shade50
+            : isPendiente
+                ? Colors.orange.shade50
+                : Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+            color: isPagado
+                ? Colors.green.shade200
+                : isPendiente
+                    ? Colors.orange.shade300
+                    : Colors.grey.shade200),
+      ),
+      child: Row(children: [
+        Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+              color: _kAzul, borderRadius: BorderRadius.circular(8)),
+          alignment: Alignment.center,
+          child: Text(widget.asiento,
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 11)),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(widget.nombre,
+                style:
+                    const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+            Text('C.I. ${widget.cedula}',
+                style: const TextStyle(fontSize: 11, color: Colors.grey)),
+          ]),
+        ),
+        if (isPagado)
+          const Chip(
+            label: Text('PAGADO',
+                style: TextStyle(
+                    color: Colors.green,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold)),
+            backgroundColor: Colors.transparent,
+            side: BorderSide(color: Colors.green),
+            padding: EdgeInsets.zero,
+          )
+        else if (isPendiente)
+          _procesando
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2))
+              : FilledButton(
+                  onPressed: _confirmarPago,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.orange.shade700,
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    textStyle: const TextStyle(fontSize: 10),
+                  ),
+                  child: const Text('Confirmar\nPago'),
+                ),
+      ]),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BOTTOM SHEET EMERGENCIA CONDUCTOR
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _BottomSheetEmergenciaConductor extends StatelessWidget {
+  final bool emergenciaActiva;
+  final void Function(String) onEmergencia;
+  final VoidCallback onResolver;
+
+  const _BottomSheetEmergenciaConductor({
+    required this.emergenciaActiva,
+    required this.onEmergencia,
+    required this.onResolver,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 36),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(children: [
+            Icon(Icons.warning_rounded, color: Colors.red, size: 26),
+            SizedBox(width: 10),
+            Text('Panel de Emergencia',
+                style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                    color: Colors.red)),
+          ]),
+          const SizedBox(height: 16),
+          if (emergenciaActiva) ...[
+            _OpcionEmergencia(
+              icono: Icons.check_circle_outline_rounded,
+              label: 'Resolver Emergencia',
+              subtitulo: 'Libera la unidad y reactiva el servicio',
+              color: Colors.green,
+              onTap: onResolver,
+            ),
+          ] else ...[
+            _OpcionEmergencia(
+              icono: Icons.build_circle_outlined,
+              label: 'Falla Mecanica',
+              subtitulo: 'Problema tecnico en la unidad',
+              color: Colors.orange,
+              onTap: () => onEmergencia('Falla mecanica'),
+            ),
+            const SizedBox(height: 8),
+            _OpcionEmergencia(
+              icono: Icons.car_crash_rounded,
+              label: 'Colision / Choque Vial',
+              subtitulo: 'Activa unidad de respaldo automaticamente',
+              color: Colors.red,
+              onTap: () => onEmergencia('Colision/Choque vial'),
+            ),
+          ],
         ],
       ),
     );
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// TARJETA: ESTADO DE RUTA
-// ─────────────────────────────────────────────────────────────────────────────
+class _OpcionEmergencia extends StatelessWidget {
+  final IconData icono;
+  final String label;
+  final String subtitulo;
+  final Color color;
+  final VoidCallback onTap;
 
-class _TarjetaEstadoRuta extends StatelessWidget {
-  final bool rutaActiva;
-  final void Function(bool) onToggle;
-
-  const _TarjetaEstadoRuta({
-    required this.rutaActiva,
-    required this.onToggle,
+  const _OpcionEmergencia({
+    required this.icono,
+    required this.label,
+    required this.subtitulo,
+    required this.color,
+    required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    final color = rutaActiva ? Colors.green : colors.outline;
-
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      elevation: 1,
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.route_outlined, color: color),
-                const SizedBox(width: 8),
-                Text('Estado de la Ruta',
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleSmall
-                        ?.copyWith(fontWeight: FontWeight.bold)),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                // Indicador visual grande
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 300),
-                  width: 14,
-                  height: 14,
-                  decoration: BoxDecoration(
-                    color: color,
-                    shape: BoxShape.circle,
-                    boxShadow: rutaActiva
-                        ? [
-                            BoxShadow(
-                                color: Colors.green.withOpacity(0.5),
-                                blurRadius: 8)
-                          ]
-                        : null,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    rutaActiva
-                        ? 'Ruta activa — visible para estudiantes'
-                        : 'Ruta inactiva — no visible en el mapa',
-                    style: TextStyle(
-                      color: rutaActiva
-                          ? Colors.green.shade700
-                          : colors.onSurface.withOpacity(0.5),
-                      fontWeight: FontWeight.w500,
-                      fontSize: 13,
-                    ),
-                  ),
-                ),
-                Switch.adaptive(
-                  value: rutaActiva,
-                  onChanged: onToggle,
-                  activeColor: Colors.green,
-                ),
-              ],
-            ),
-          ],
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.07),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withOpacity(0.3)),
         ),
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// TARJETA: SIMULADOR GPS
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _TarjetaSimulador extends StatelessWidget {
-  final bool rutaActiva;
-  final bool simulando;
-  final int pasoActual;
-  final int totalPasos;
-  final VoidCallback onIniciar;
-
-  const _TarjetaSimulador({
-    required this.rutaActiva,
-    required this.simulando,
-    required this.pasoActual,
-    required this.totalPasos,
-    required this.onIniciar,
-  });
-
-  static const _etiquetasPasos = [
-    'La California Norte',
-    'Av. Francisco de Miranda',
-    'Petare — Entrada',
-    'Av. Rómulo Gallegos',
-    'Entrada USM Caracas',
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      elevation: 1,
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.navigation_outlined, color: colors.primary),
-                const SizedBox(width: 8),
-                Text('Simulador GPS',
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleSmall
-                        ?.copyWith(fontWeight: FontWeight.bold)),
-                const Spacer(),
-                if (simulando)
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: Colors.orange.shade50,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: Colors.orange.shade300),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        SizedBox(
-                          width: 10,
-                          height: 10,
-                          child: CircularProgressIndicator(
-                              strokeWidth: 2, color: Colors.orange.shade600),
-                        ),
-                        const SizedBox(width: 5),
-                        Text('EN VIVO',
-                            style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.orange.shade700)),
-                      ],
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Actualiza el GeoPoint en Firestore cada 3 segundos para que el mapa del estudiante muestre el movimiento.',
-              style: TextStyle(
-                  fontSize: 12, color: colors.onSurface.withOpacity(0.55)),
-            ),
-
-            // Progreso de pasos cuando está simulando
-            if (simulando) ...[
-              const SizedBox(height: 16),
-              _BarraProgreso(
-                  pasoActual: pasoActual,
-                  totalPasos: totalPasos,
-                  etiquetas: _etiquetasPasos),
-            ],
-
-            const SizedBox(height: 16),
-
-            SizedBox(
-              width: double.infinity,
-              child: simulando
-                  ? OutlinedButton.icon(
-                      onPressed: onIniciar,
-                      icon: const Icon(Icons.stop_circle_outlined),
-                      label: const Text('Detener Simulación'),
-                      style: OutlinedButton.styleFrom(
-                        minimumSize: const Size.fromHeight(48),
-                        foregroundColor: colors.error,
-                        side: BorderSide(color: colors.error),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
-                      ),
-                    )
-                  : FilledButton.icon(
-                      onPressed: rutaActiva ? onIniciar : null,
-                      icon: const Icon(Icons.play_arrow_rounded),
-                      label: const Text('Simular Recorrido (Ruta USM)'),
-                      style: FilledButton.styleFrom(
-                        minimumSize: const Size.fromHeight(48),
-                        backgroundColor: Colors.orange.shade600,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
-                      ),
-                    ),
-            ),
-
-            if (!rutaActiva && !simulando)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(
-                  '⚠ Activa la ruta primero para simular.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                      fontSize: 12, color: colors.onSurface.withOpacity(0.45)),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _BarraProgreso extends StatelessWidget {
-  final int pasoActual;
-  final int totalPasos;
-  final List<String> etiquetas;
-
-  const _BarraProgreso({
-    required this.pasoActual,
-    required this.totalPasos,
-    required this.etiquetas,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Barra linear
-        ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: LinearProgressIndicator(
-            value: (pasoActual + 1) / totalPasos,
-            minHeight: 6,
-            backgroundColor: colors.surfaceVariant,
-            valueColor: const AlwaysStoppedAnimation<Color>(Colors.orange),
-          ),
-        ),
-        const SizedBox(height: 8),
-        // Ubicación actual
-        Row(
-          children: [
-            const Icon(Icons.location_pin, size: 14, color: Colors.orange),
-            const SizedBox(width: 4),
-            Expanded(
-              child: Text(
-                pasoActual < etiquetas.length
-                    ? etiquetas[pasoActual]
-                    : 'En ruta...',
-                style:
-                    const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-              ),
-            ),
-            Text(
-              '${pasoActual + 1}/$totalPasos',
-              style: TextStyle(
-                  fontSize: 11, color: colors.onSurface.withOpacity(0.5)),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// TARJETA: CONTADOR DE ASIENTOS EN TIEMPO REAL (STREAM)
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _TarjetaAsientosStream extends StatelessWidget {
-  final String camionetaId;
-
-  const _TarjetaAsientosStream({required this.camionetaId});
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    final db = FirebaseFirestore.instance;
-
-    return StreamBuilder<DocumentSnapshot>(
-      stream: db.collection('camionetas').doc(camionetaId).snapshots(),
-      builder: (context, snap) {
-        int ocupados = 0;
-        int total = 24;
-        bool cargando = snap.connectionState == ConnectionState.waiting;
-
-        if (snap.hasData && snap.data!.exists) {
-          final data = snap.data!.data() as Map<String, dynamic>;
-          final asientos = (data['asientos'] as Map<String, dynamic>?) ?? {};
-          total = asientos.length > 0 ? asientos.length : 24;
-          ocupados = asientos.values.where((v) {
-            if (v is Map) return v['ocupado'] == true;
-            return false;
-          }).length;
-        }
-
-        final libres = total - ocupados;
-        final porcentaje = total > 0 ? ocupados / total : 0.0;
-
-        return Card(
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          elevation: 1,
-          child: Padding(
-            padding: const EdgeInsets.all(20),
+        child: Row(children: [
+          Icon(icono, color: color, size: 28),
+          const SizedBox(width: 14),
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Icon(Icons.event_seat_outlined, color: colors.primary),
-                    const SizedBox(width: 8),
-                    Text('Ocupación en Tiempo Real',
-                        style: Theme.of(context)
-                            .textTheme
-                            .titleSmall
-                            ?.copyWith(fontWeight: FontWeight.bold)),
-                    const Spacer(),
-                    if (cargando)
-                      const SizedBox(
-                          width: 14,
-                          height: 14,
-                          child: CircularProgressIndicator(strokeWidth: 2)),
-                  ],
-                ),
-                const SizedBox(height: 20),
-
-                // Números grandes
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    _ContadorBloque(
-                        valor: ocupados,
-                        etiqueta: 'Ocupados',
-                        color: Colors.red.shade400),
-                    Container(
-                        width: 1, height: 50, color: colors.outlineVariant),
-                    _ContadorBloque(
-                        valor: libres,
-                        etiqueta: 'Libres',
-                        color: Colors.green.shade500),
-                    Container(
-                        width: 1, height: 50, color: colors.outlineVariant),
-                    _ContadorBloque(
-                        valor: total, etiqueta: 'Total', color: colors.primary),
-                  ],
-                ),
-                const SizedBox(height: 16),
-
-                // Barra de ocupación
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text('Ocupación',
-                            style: TextStyle(
-                                fontSize: 12,
-                                color: colors.onSurface.withOpacity(0.6))),
-                        Text(
-                          '${(porcentaje * 100).toStringAsFixed(0)}%',
-                          style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: _colorOcupacion(porcentaje)),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
-                      child: LinearProgressIndicator(
-                        value: porcentaje,
-                        minHeight: 8,
-                        backgroundColor: colors.surfaceVariant,
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                            _colorOcupacion(porcentaje)),
-                      ),
-                    ),
-                  ],
-                ),
+                Text(label,
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                        color: color)),
+                Text(subtitulo,
+                    style:
+                        TextStyle(color: Colors.grey.shade600, fontSize: 12)),
               ],
             ),
           ),
-        );
-      },
-    );
-  }
-
-  Color _colorOcupacion(double p) {
-    if (p >= 0.9) return Colors.red.shade500;
-    if (p >= 0.6) return Colors.orange.shade500;
-    return Colors.green.shade500;
-  }
-}
-
-class _ContadorBloque extends StatelessWidget {
-  final int valor;
-  final String etiqueta;
-  final Color color;
-
-  const _ContadorBloque({
-    required this.valor,
-    required this.etiqueta,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Text(
-          '$valor',
-          style: TextStyle(
-              fontSize: 32, fontWeight: FontWeight.bold, color: color),
-        ),
-        Text(etiqueta,
-            style: TextStyle(
-                fontSize: 12,
-                color:
-                    Theme.of(context).colorScheme.onSurface.withOpacity(0.6))),
-      ],
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// TARJETA: PARADAS DE LA RUTA (informativa)
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _TarjetaParadas extends StatelessWidget {
-  const _TarjetaParadas();
-
-  static const _paradas = [
-    (icono: Icons.trip_origin, nombre: 'La California Norte', tipo: 'Origen'),
-    (icono: Icons.more_vert, nombre: 'Av. Francisco de Miranda', tipo: ''),
-    (icono: Icons.more_vert, nombre: 'Petare — Entrada', tipo: ''),
-    (icono: Icons.more_vert, nombre: 'Av. Rómulo Gallegos', tipo: ''),
-    (
-      icono: Icons.school_outlined,
-      nombre: 'Entrada USM Caracas',
-      tipo: 'Destino'
-    ),
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      elevation: 1,
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.map_outlined, color: colors.primary),
-                const SizedBox(width: 8),
-                Text('Ruta Simulada',
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleSmall
-                        ?.copyWith(fontWeight: FontWeight.bold)),
-              ],
-            ),
-            const SizedBox(height: 16),
-            ..._paradas.map((p) => _FilaParada(
-                  icono: p.icono,
-                  nombre: p.nombre,
-                  tipo: p.tipo,
-                  esUltimo: p == _paradas.last,
-                )),
-          ],
-        ),
+          Icon(Icons.arrow_forward_ios_rounded,
+              color: color.withOpacity(0.5), size: 14),
+        ]),
       ),
-    );
-  }
-}
-
-class _FilaParada extends StatelessWidget {
-  final IconData icono;
-  final String nombre;
-  final String tipo;
-  final bool esUltimo;
-
-  const _FilaParada({
-    required this.icono,
-    required this.nombre,
-    required this.tipo,
-    required this.esUltimo,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    final esDestino = tipo == 'Destino';
-    final esOrigen = tipo == 'Origen';
-
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Column(
-          children: [
-            Icon(icono,
-                size: 20,
-                color: esDestino
-                    ? colors.primary
-                    : esOrigen
-                        ? Colors.green
-                        : colors.outline),
-            if (!esUltimo)
-              Container(width: 2, height: 20, color: colors.outlineVariant),
-          ],
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(nombre,
-                      style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: (esOrigen || esDestino)
-                              ? FontWeight.bold
-                              : FontWeight.normal)),
-                ),
-                if (tipo.isNotEmpty)
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: (esDestino
-                          ? colors.primaryContainer
-                          : Colors.green.shade50),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(tipo,
-                        style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
-                            color: esDestino
-                                ? colors.primary
-                                : Colors.green.shade700)),
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ],
     );
   }
 }

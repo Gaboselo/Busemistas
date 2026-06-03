@@ -46,7 +46,9 @@ class CampoTexto extends StatelessWidget {
       validator: validator,
       onChanged: onChanged,
       style: TextStyle(
-        color: bloqueado ? colors.onSurface.withOpacity(0.5) : colors.onSurface,
+        color: bloqueado
+            ? colors.onSurface.withValues(alpha: 0.5)
+            : colors.onSurface,
       ),
       decoration: InputDecoration(
         labelText: etiqueta,
@@ -61,15 +63,15 @@ class CampoTexto extends StatelessWidget {
             : null,
         filled: true,
         fillColor: bloqueado
-            ? colors.surfaceVariant.withOpacity(0.4)
-            : colors.surfaceVariant.withOpacity(0.2),
+            ? colors.surfaceContainerHighest.withValues(alpha: 0.4)
+            : colors.surfaceContainerHighest.withValues(alpha: 0.2),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: colors.outline.withOpacity(0.3)),
+          borderSide: BorderSide(color: colors.outline.withValues(alpha: 0.3)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),

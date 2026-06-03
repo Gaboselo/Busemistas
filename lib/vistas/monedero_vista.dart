@@ -1,0 +1,844 @@
+// lib/vistas/monedero_vista.dart
+// Busemistas USM v4
+// REGLA: sin tildes, sin enies, sin caracteres especiales.
+// Cambios:
+//   - Precio Plan Usemista fijado en $10.00
+//   - Validacion: si mensualidad_activa ya es true -> SnackBar de aviso
+//   - TabBar colores correctos: activo blanco, inactivo gris claro
+//   - Pie de pagina legal
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+
+import '../providers/auth_provider.dart';
+import '../servicios/validadores.dart';
+import '../widgets/campo_texto.dart';
+
+const Color _kAzul = Color(0xFF0E004A);
+
+// Precio oficial del plan
+const double kPrecioPlanUsemista = 10.00;
+
+class MonederoVista extends StatefulWidget {
+  const MonederoVista({super.key});
+
+  @override
+  State<MonederoVista> createState() => _MonederoVistaState();
+}
+
+class _MonederoVistaState extends State<MonederoVista>
+    with SingleTickerProviderStateMixin {
+  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  late TabController _tabCtrl;
+  bool _procesando = false;
+
+  final _formRecarga = GlobalKey<FormState>();
+  final _referenciaCtrl = TextEditingController();
+  final _telefonoEmisorCtrl = TextEditingController();
+  final _montoCtrl = TextEditingController();
+
+  static const _bancos = [
+    'Banco de Venezuela',
+    'Banesco',
+    'Mercantil',
+    'BNC',
+    'BBVA Provincial',
+    'Bicentenario',
+    'Exterior',
+    'Banplus',
+    'Otro',
+  ];
+  String? _bancoSeleccionado;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabCtrl = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabCtrl.dispose();
+    _referenciaCtrl.dispose();
+    _telefonoEmisorCtrl.dispose();
+    _montoCtrl.dispose();
+    super.dispose();
+  }
+
+  // ── Recarga ──────────────────────────────────────────────────────
+  Future<void> _procesarRecarga(BuildContext context) async {
+    if (!_formRecarga.currentState!.validate()) return;
+    if (_bancoSeleccionado == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Selecciona tu banco emisor.'),
+        backgroundColor: Colors.orange,
+      ));
+      return;
+    }
+
+    final monto = double.tryParse(_montoCtrl.text.trim()) ?? 0;
+    if (monto <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Ingresa un monto valido.'),
+        backgroundColor: Colors.orange,
+      ));
+      return;
+    }
+
+    setState(() => _procesando = true);
+    final auth = context.read<AuthProvider>();
+    final cedula = auth.cedulaActual;
+    if (cedula == null) return;
+
+    try {
+      await _db.runTransaction((tx) async {
+        final userRef = _db.collection('usuarios').doc(cedula);
+        final snap = await tx.get(userRef);
+        if (!snap.exists) throw Exception('Usuario no encontrado.');
+
+        final recargaRef = _db.collection('recargas_pendientes').doc();
+        tx.set(recargaRef, {
+          'cedula': cedula,
+          'nombre': auth.nombreCompleto ?? '',
+          'monto': monto,
+          'referencia': _referenciaCtrl.text.trim(),
+          'banco_emisor': _bancoSeleccionado,
+          'telefono_emisor': _telefonoEmisorCtrl.text.trim(),
+          'estado': 'aprobado',
+          'fecha': FieldValue.serverTimestamp(),
+        });
+        tx.update(userRef, {'saldo': FieldValue.increment(monto)});
+      });
+
+      if (!context.mounted) return;
+      await auth.refrescarDatosUsuario();
+
+      _referenciaCtrl.clear();
+      _telefonoEmisorCtrl.clear();
+      _montoCtrl.clear();
+      setState(() => _bancoSeleccionado = null);
+
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Recarga de \$${monto.toStringAsFixed(2)} aplicada.'),
+        backgroundColor: Colors.green,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ));
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(e.toString().replaceAll('Exception: ', '')),
+        backgroundColor: Colors.red.shade700,
+      ));
+    } finally {
+      if (mounted) setState(() => _procesando = false);
+    }
+  }
+
+  // ── Activar Plan Usemista con transaccion ACID ───────────────────
+  // Precio: $10.00
+  // Validaciones:
+  //   1. Si mensualidad_activa == true en Firestore -> aviso SnackBar
+  //   2. Si saldo < 10.00 -> bloquear con mensaje
+  //   3. Si ok -> descontar $10 y activar plan 30 dias
+  Future<void> _activarPlanUsemista(BuildContext context) async {
+    setState(() => _procesando = true);
+    final auth = context.read<AuthProvider>();
+    final cedula = auth.cedulaActual;
+    if (cedula == null) {
+      setState(() => _procesando = false);
+      return;
+    }
+
+    try {
+      // Leer estado actual directo de Firestore (fuente de verdad)
+      final snap = await _db.collection('usuarios').doc(cedula).get();
+      if (!snap.exists) throw Exception('Usuario no encontrado.');
+
+      final data = snap.data()!;
+      final planYaActivo = data['mensualidad_activa'] as bool? ?? false;
+      final saldoActual = (data['saldo'] as num?)?.toDouble() ?? 0.0;
+
+      // Validacion 1: ya tiene plan activo
+      if (planYaActivo) {
+        setState(() => _procesando = false);
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Ya posees el Plan Usemista activo en tu cuenta.'),
+          backgroundColor: Colors.orange,
+          behavior: SnackBarBehavior.floating,
+        ));
+        return;
+      }
+
+      // Validacion 2: saldo insuficiente
+      if (saldoActual < kPrecioPlanUsemista) {
+        setState(() => _procesando = false);
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(
+            'Saldo insuficiente (\$${saldoActual.toStringAsFixed(2)}). '
+            'Necesitas \$${kPrecioPlanUsemista.toStringAsFixed(2)}.',
+          ),
+          backgroundColor: Colors.red.shade700,
+          behavior: SnackBarBehavior.floating,
+        ));
+        return;
+      }
+
+      // Mostrar dialogo de confirmacion
+      if (!context.mounted) return;
+      final confirmar = await showDialog<bool>(
+        context: context,
+        builder: (_) => AlertDialog(
+          icon: const Icon(Icons.card_membership, color: _kAzul, size: 36),
+          title: const Text('Activar Plan Usemista'),
+          content: Text(
+            'Se descontaran \$${kPrecioPlanUsemista.toStringAsFixed(2)} de tu saldo.\n'
+            'Tu plan quedara activo por 30 dias.\n'
+            'Tu asiento sera GRATIS en cada viaje.\n\n'
+            'Confirmar?',
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancelar')),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: _kAzul),
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Activar'),
+            ),
+          ],
+        ),
+      );
+
+      if (confirmar != true) {
+        setState(() => _procesando = false);
+        return;
+      }
+
+      // Transaccion ACID: descontar saldo y activar plan
+      await _db.runTransaction((tx) async {
+        final userRef = _db.collection('usuarios').doc(cedula);
+        final txSnap = await tx.get(userRef);
+        if (!txSnap.exists) throw Exception('Usuario no encontrado.');
+
+        final txData = txSnap.data()!;
+        final txPlanActivo = txData['mensualidad_activa'] as bool? ?? false;
+        final txSaldo = (txData['saldo'] as num?)?.toDouble() ?? 0.0;
+
+        // Re-verificar en la transaccion (evita condicion de carrera)
+        if (txPlanActivo) throw Exception('__PLAN_YA_ACTIVO__');
+        if (txSaldo < kPrecioPlanUsemista) {
+          throw Exception('Saldo insuficiente dentro de la transaccion.');
+        }
+
+        final vencimiento =
+            Timestamp.fromDate(DateTime.now().add(const Duration(days: 30)));
+
+        tx.update(userRef, {
+          'saldo': FieldValue.increment(-kPrecioPlanUsemista),
+          'mensualidad_activa': true,
+          'vencimiento_mensualidad': vencimiento,
+        });
+      });
+
+      if (!context.mounted) return;
+      await auth.refrescarDatosUsuario();
+      auth.actualizarMensualidad(true);
+
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Plan Usemista activado! Vigencia: 30 dias.'),
+        backgroundColor: Colors.green,
+        behavior: SnackBarBehavior.floating,
+      ));
+    } catch (e) {
+      if (!context.mounted) return;
+      final msg = e.toString().replaceAll('Exception: ', '');
+      if (msg == '__PLAN_YA_ACTIVO__') {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Ya posees el Plan Usemista activo en tu cuenta.'),
+          backgroundColor: Colors.orange,
+          behavior: SnackBarBehavior.floating,
+        ));
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(msg),
+          backgroundColor: Colors.red.shade700,
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _procesando = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
+    final cedula = auth.cedulaActual ?? '';
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Monedero Virtual'),
+        backgroundColor: _kAzul,
+        foregroundColor: Colors.white,
+        bottom: TabBar(
+          controller: _tabCtrl,
+          // activo: blanco puro, inactivo: gris claro visible sobre azul oscuro
+          labelColor: Colors.white,
+          unselectedLabelColor: Colors.white54,
+          indicatorColor: Colors.white,
+          indicatorWeight: 3,
+          tabs: const [
+            Tab(icon: Icon(Icons.add_card_outlined), text: 'Recargar'),
+            Tab(
+                icon: Icon(Icons.card_membership_outlined),
+                text: 'Plan Usemista'),
+          ],
+        ),
+      ),
+      body: Column(
+        children: [
+          // Saldo en tiempo real
+          StreamBuilder<DocumentSnapshot>(
+            stream: _db.collection('usuarios').doc(cedula).snapshots(),
+            builder: (context, snap) {
+              double saldo = auth.saldo;
+              bool planActivo = auth.mensualidadActiva;
+              DateTime? vencimiento;
+
+              if (snap.hasData && snap.data!.exists) {
+                final data = snap.data!.data() as Map<String, dynamic>;
+                saldo = (data['saldo'] as num?)?.toDouble() ?? 0.0;
+                planActivo = data['mensualidad_activa'] as bool? ?? false;
+                final ts = data['vencimiento_mensualidad'] as Timestamp?;
+                if (ts != null) vencimiento = ts.toDate();
+
+                // Auto-desactivar plan vencido
+                if (planActivo &&
+                    vencimiento != null &&
+                    DateTime.now().isAfter(vencimiento)) {
+                  planActivo = false;
+                  _db
+                      .collection('usuarios')
+                      .doc(cedula)
+                      .update({'mensualidad_activa': false});
+                }
+              }
+
+              return _TarjetaSaldo(
+                saldo: saldo,
+                planActivo: planActivo,
+                vencimiento: vencimiento,
+                nombre: auth.nombreCompleto ?? '',
+              );
+            },
+          ),
+
+          Expanded(
+            child: TabBarView(
+              controller: _tabCtrl,
+              children: [
+                // Tab 1: Recarga
+                _TabRecarga(
+                  formKey: _formRecarga,
+                  referenciaCtrl: _referenciaCtrl,
+                  telefonoEmisorCtrl: _telefonoEmisorCtrl,
+                  montoCtrl: _montoCtrl,
+                  bancos: _bancos,
+                  bancoSeleccionado: _bancoSeleccionado,
+                  procesando: _procesando,
+                  onBancoChanged: (v) => setState(() => _bancoSeleccionado = v),
+                  onProcesar: () => _procesarRecarga(context),
+                ),
+                // Tab 2: Plan Usemista
+                _TabPlanUsemista(
+                  planActivo: auth.mensualidadActiva,
+                  procesando: _procesando,
+                  saldo: auth.saldo,
+                  onActivar: () => _activarPlanUsemista(context),
+                ),
+              ],
+            ),
+          ),
+
+          // Pie de pagina legal
+          const _PiePagina(),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TARJETA DE SALDO
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _TarjetaSaldo extends StatelessWidget {
+  final double saldo;
+  final bool planActivo;
+  final DateTime? vencimiento;
+  final String nombre;
+
+  const _TarjetaSaldo({
+    required this.saldo,
+    required this.planActivo,
+    required this.vencimiento,
+    required this.nombre,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF0E004A), Color(0xFF3A0CA3)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+              color: _kAzul.withOpacity(0.35),
+              blurRadius: 16,
+              offset: const Offset(0, 6))
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(nombre.split(' ').first,
+                      style:
+                          const TextStyle(color: Colors.white70, fontSize: 13)),
+                  const SizedBox(height: 4),
+                  const Text('Saldo disponible',
+                      style: TextStyle(color: Colors.white60, fontSize: 12)),
+                  Text('\$${saldo.toStringAsFixed(2)}',
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 34,
+                          fontWeight: FontWeight.bold)),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.15),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.account_balance_wallet_rounded,
+                  color: Colors.white, size: 28),
+            ),
+          ]),
+          if (planActivo) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.green.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.greenAccent.withOpacity(0.4)),
+              ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                const Icon(Icons.card_membership,
+                    color: Colors.greenAccent, size: 16),
+                const SizedBox(width: 6),
+                Text(
+                  vencimiento != null
+                      ? 'Plan Usemista hasta ${vencimiento!.day}/${vencimiento!.month}/${vencimiento!.year}'
+                      : 'Plan Usemista activo',
+                  style: const TextStyle(
+                      color: Colors.greenAccent,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600),
+                ),
+              ]),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TAB RECARGA
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _TabRecarga extends StatelessWidget {
+  final GlobalKey<FormState> formKey;
+  final TextEditingController referenciaCtrl;
+  final TextEditingController telefonoEmisorCtrl;
+  final TextEditingController montoCtrl;
+  final List<String> bancos;
+  final String? bancoSeleccionado;
+  final bool procesando;
+  final void Function(String?) onBancoChanged;
+  final VoidCallback onProcesar;
+
+  const _TabRecarga({
+    required this.formKey,
+    required this.referenciaCtrl,
+    required this.telefonoEmisorCtrl,
+    required this.montoCtrl,
+    required this.bancos,
+    required this.bancoSeleccionado,
+    required this.procesando,
+    required this.onBancoChanged,
+    required this.onProcesar,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Form(
+        key: formKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Datos de recarga',
+                style: TextStyle(
+                    fontWeight: FontWeight.bold, fontSize: 16, color: _kAzul)),
+            const SizedBox(height: 4),
+            Text('Realiza un pago movil y registra los datos aqui.',
+                style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+            const SizedBox(height: 20),
+
+            // Info cuenta destino
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.blue.shade200),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(children: [
+                    Icon(Icons.info_outline,
+                        color: Colors.blue.shade700, size: 18),
+                    const SizedBox(width: 8),
+                    const Text('Cuenta destino Busemistas',
+                        style: TextStyle(fontWeight: FontWeight.bold)),
+                  ]),
+                  const SizedBox(height: 8),
+                  _FilaInfo(label: 'Banco:', valor: 'Banesco'),
+                  _FilaInfo(label: 'Telefono:', valor: '0412-0000000'),
+                  _FilaInfo(label: 'RIF:', valor: 'J-305390042'),
+                  _FilaInfo(label: 'Titular:', valor: 'Busemistas USM C.A.'),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            DropdownButtonFormField<String>(
+              value: bancoSeleccionado,
+              decoration: InputDecoration(
+                labelText: 'Banco emisor',
+                prefixIcon: const Icon(Icons.account_balance_outlined),
+                border:
+                    OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+              ),
+              items: bancos
+                  .map((b) => DropdownMenuItem(value: b, child: Text(b)))
+                  .toList(),
+              onChanged: onBancoChanged,
+              validator: (v) => v == null ? 'Selecciona tu banco.' : null,
+            ),
+            const SizedBox(height: 14),
+
+            CampoTexto(
+              controller: telefonoEmisorCtrl,
+              etiqueta: 'Tu telefono emisor',
+              hint: '0414-1234567',
+              icono: Icons.phone_outlined,
+              keyboardType: TextInputType.phone,
+              validator: Validadores.telefono,
+            ),
+            const SizedBox(height: 14),
+
+            CampoTexto(
+              controller: referenciaCtrl,
+              etiqueta: 'Numero de referencia',
+              hint: 'Ej: 0123456789',
+              icono: Icons.confirmation_number_outlined,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              validator: (v) => v == null || v.isEmpty
+                  ? 'Ingresa el numero de referencia.'
+                  : null,
+            ),
+            const SizedBox(height: 14),
+
+            CampoTexto(
+              controller: montoCtrl,
+              etiqueta: 'Monto transferido (\$)',
+              hint: 'Ej: 10.00',
+              icono: Icons.attach_money,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              validator: (v) {
+                if (v == null || v.isEmpty) return 'Ingresa el monto.';
+                final d = double.tryParse(v);
+                if (d == null || d <= 0) return 'Monto invalido.';
+                return null;
+              },
+            ),
+            const SizedBox(height: 24),
+
+            FilledButton.icon(
+              onPressed: procesando ? null : onProcesar,
+              icon: procesando
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white))
+                  : const Icon(Icons.add_card),
+              label: Text(procesando ? 'Procesando...' : 'Confirmar Recarga'),
+              style: FilledButton.styleFrom(
+                backgroundColor: _kAzul,
+                minimumSize: const Size.fromHeight(52),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'En produccion las recargas quedan pendientes hasta '
+              'aprobacion del administrador.',
+              style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FilaInfo extends StatelessWidget {
+  final String label;
+  final String valor;
+  const _FilaInfo({required this.label, required this.valor});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Row(children: [
+        Text(label,
+            style: const TextStyle(fontSize: 12, color: Colors.black54)),
+        const SizedBox(width: 6),
+        Text(valor,
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+      ]),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TAB PLAN USEMISTA
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _TabPlanUsemista extends StatelessWidget {
+  final bool planActivo;
+  final bool procesando;
+  final double saldo;
+  final VoidCallback onActivar;
+
+  const _TabPlanUsemista({
+    required this.planActivo,
+    required this.procesando,
+    required this.saldo,
+    required this.onActivar,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(children: [
+        // Banner del plan
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            gradient: planActivo
+                ? const LinearGradient(
+                    colors: [Colors.green, Color(0xFF00A878)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  )
+                : const LinearGradient(
+                    colors: [Color(0xFF0E004A), Color(0xFF3A0CA3)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                  color: _kAzul.withOpacity(0.3),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4))
+            ],
+          ),
+          child: Column(children: [
+            Icon(
+              planActivo
+                  ? Icons.verified_rounded
+                  : Icons.card_membership_rounded,
+              color: Colors.white,
+              size: 48,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              planActivo ? 'Plan Usemista ACTIVO' : 'Plan Usemista',
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              '\$${kPrecioPlanUsemista.toStringAsFixed(2)} / mes',
+              style: const TextStyle(color: Colors.white70, fontSize: 16),
+            ),
+          ]),
+        ),
+        const SizedBox(height: 24),
+
+        // Beneficios
+        _FilaBeneficio(
+            icono: Icons.event_seat_rounded,
+            texto: 'Tu asiento personal GRATIS en cada viaje'),
+        _FilaBeneficio(
+            icono: Icons.person_add_alt_1_rounded,
+            texto: 'Asientos adicionales para acompaniantes: \$1 c/u'),
+        _FilaBeneficio(
+            icono: Icons.calendar_month_rounded,
+            texto: 'Vigencia de 30 dias continuos'),
+        _FilaBeneficio(
+            icono: Icons.savings_rounded,
+            texto: 'Ahorro estimado vs pago individual'),
+        const SizedBox(height: 24),
+
+        if (!planActivo) ...[
+          Text(
+            'Saldo actual: \$${saldo.toStringAsFixed(2)} / Necesitas: \$${kPrecioPlanUsemista.toStringAsFixed(2)}',
+            style: TextStyle(
+                color: saldo >= kPrecioPlanUsemista
+                    ? Colors.green.shade700
+                    : Colors.red.shade600,
+                fontSize: 13,
+                fontWeight: FontWeight.w500),
+          ),
+          const SizedBox(height: 16),
+          FilledButton.icon(
+            onPressed:
+                (procesando || saldo < kPrecioPlanUsemista) ? null : onActivar,
+            icon: procesando
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white))
+                : const Icon(Icons.card_membership_rounded),
+            label: Text(procesando
+                ? 'Activando...'
+                : saldo < kPrecioPlanUsemista
+                    ? 'Saldo insuficiente'
+                    : 'Activar Plan Usemista - \$${kPrecioPlanUsemista.toStringAsFixed(2)}'),
+            style: FilledButton.styleFrom(
+              backgroundColor: _kAzul,
+              minimumSize: const Size.fromHeight(52),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+        ] else ...[
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.green.shade50,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.green.shade300),
+            ),
+            child: const Row(children: [
+              Icon(Icons.check_circle_rounded, color: Colors.green),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Tu plan esta activo. Disfruta de viajes con descuento!',
+                  style: TextStyle(
+                      color: Colors.green, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ]),
+          ),
+        ],
+      ]),
+    );
+  }
+}
+
+class _FilaBeneficio extends StatelessWidget {
+  final IconData icono;
+  final String texto;
+  const _FilaBeneficio({required this.icono, required this.texto});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: _kAzul.withOpacity(0.08),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icono, color: _kAzul, size: 20),
+        ),
+        const SizedBox(width: 14),
+        Expanded(child: Text(texto, style: const TextStyle(fontSize: 13))),
+      ]),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PIE DE PAGINA LEGAL
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _PiePagina extends StatelessWidget {
+  const _PiePagina();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+      color: Colors.grey.shade100,
+      child: Text(
+        'Contacto: +58-4241231561  |  RIF: J-305390042  |  Busemistas USM C.A.',
+        textAlign: TextAlign.center,
+        style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
+      ),
+    );
+  }
+}

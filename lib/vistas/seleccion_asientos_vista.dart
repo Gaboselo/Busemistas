@@ -1,5 +1,11 @@
 // lib/vistas/seleccion_asientos_vista.dart
-// Parte 4: Selección de asientos, reserva y pago ($1)
+// Busemistas USM v5
+// REGLA: sin tildes, sin enies, sin caracteres especiales.
+// Cambios v5:
+//   - _calcularCosto usa Tarifas.pasaje(rol) en lugar de $1.00 hardcodeado
+//   - El panel de confirmacion muestra el nombre del plan dinamicamente
+//   - El boleto digital refleja el nombre del plan segun el rol
+//   - Header de la AppBar muestra "Plan Usemista" o "Plan Empleado" segun rol
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -7,15 +13,9 @@ import 'package:provider/provider.dart';
 
 import '../providers/auth_provider.dart';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// ESTADOS POSIBLES DE UN ASIENTO
-// ─────────────────────────────────────────────────────────────────────────────
+const Color _kAzul = Color(0xFF0E004A);
 
 enum EstadoAsiento { libre, ocupado, seleccionado }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// VISTA PRINCIPAL
-// ─────────────────────────────────────────────────────────────────────────────
 
 class SeleccionAsientosVista extends StatefulWidget {
   final String camionetaId;
@@ -28,10 +28,11 @@ class SeleccionAsientosVista extends StatefulWidget {
 class _SeleccionAsientosVistaState extends State<SeleccionAsientosVista> {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
-  int? _asientoSeleccionado; // número de 1 a 24, null = ninguno
+  // Multi-seleccion: Set de numeros de asiento
+  final Set<int> _asientosSeleccionados = {};
   bool _procesando = false;
+  bool _yaFueExpulsado = false;
 
-  // ── Calcular estado de cada asiento desde Firestore ──────────────
   EstadoAsiento _estadoAsiento(int numero, Map<String, dynamic> asientos) {
     final key = '$numero';
     if (!asientos.containsKey(key)) return EstadoAsiento.libre;
@@ -40,194 +41,377 @@ class _SeleccionAsientosVistaState extends State<SeleccionAsientosVista> {
     return EstadoAsiento.libre;
   }
 
-  // ── Reservar asiento ─────────────────────────────────────────────
-  Future<void> _reservar(BuildContext context) async {
-    if (_asientoSeleccionado == null) return;
+  // ── Calcular costo segun plan y rol del usuario ──────────────────
+  // Plan activo: 1er asiento gratis, adicionales al precio del rol
+  // Sin plan   : todos al precio del rol (Tarifas.pasaje)
+  // La tarifa NUNCA se hardcodea aqui — viene de Tarifas.pasaje(rol)
+  double _calcularCosto(bool tienePlan, int cantidad, RolUsuario? rol) {
+    if (cantidad == 0) return 0.0;
+    final precioPorAsiento = Tarifas.pasaje(rol);
+    if (tienePlan) {
+      // El primer asiento es gratis (cubierto por el plan mensual)
+      return (cantidad - 1) * precioPorAsiento;
+    }
+    return cantidad * precioPorAsiento;
+  }
 
+  bool _usuarioTieneAsiento(Map<String, dynamic> asientos, String cedula) {
+    return asientos.values.any((v) =>
+        v is Map && v['ocupado'] == true && v['cedula_pasajero'] == cedula);
+  }
+
+  // ── Deseleccionar asiento especifico (logica del Chip X) ─────────
+  void _deseleccionar(int numero) {
+    setState(() {
+      _asientosSeleccionados.remove(numero);
+    });
+  }
+
+  // ── Transaccion ACID multi-asiento ───────────────────────────────
+  Future<void> _reservar(BuildContext context) async {
+    if (_asientosSeleccionados.isEmpty) return;
     final auth = context.read<AuthProvider>();
     final cedula = auth.cedulaActual;
     if (cedula == null) return;
 
+    final tienePlan = auth.mensualidadActiva;
+    final cantidad = _asientosSeleccionados.length;
+    final rol = auth.rolSeleccionado;
+    final costo = _calcularCosto(tienePlan, cantidad, rol);
+    final nombrePlan = Tarifas.nombrePlan(rol);
+    final precioPorAsiento = Tarifas.pasaje(rol);
+
+    // Aviso cuando tiene plan y selecciona mas de un asiento
+    if (tienePlan && cantidad > 1) {
+      final confirmar = await showDialog<bool>(
+        context: context,
+        builder: (_) => AlertDialog(
+          icon: const Icon(Icons.info_outline, color: _kAzul, size: 36),
+          title: Text('$nombrePlan activo'),
+          content: Text(
+            'Tu asiento personal es gratis.\n'
+            'Se cobraran ${cantidad - 1} asiento(s) adicional(es) a \$${precioPorAsiento.toStringAsFixed(2)} c/u.\n\n'
+            'Total a cobrar: \$${costo.toStringAsFixed(2)}',
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancelar')),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: _kAzul),
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Confirmar'),
+            ),
+          ],
+        ),
+      );
+      if (confirmar != true) return;
+    }
+
     setState(() => _procesando = true);
 
     try {
-      // Leer saldo actual del usuario
-      final userDoc = await _db.collection('usuarios').doc(cedula).get();
-      if (!userDoc.exists) throw Exception('Usuario no encontrado.');
-
-      final saldoActual = (userDoc.data()?['saldo'] as num?)?.toDouble() ?? 0;
-      if (saldoActual < 1) {
-        throw Exception(
-          'Saldo insuficiente. Tu saldo actual es \$$saldoActual.',
-        );
-      }
-
-      // Verificar que el asiento siga libre antes de escribir
-      final camDoc =
-          await _db.collection('camionetas').doc(widget.camionetaId).get();
-      if (!camDoc.exists) throw Exception('Camioneta no encontrada.');
-
-      final asientos =
-          (camDoc.data()?['asientos'] as Map<String, dynamic>?) ?? {};
-      final key = '${_asientoSeleccionado!}';
-      final asientoData = asientos[key];
-      if (asientoData is Map && asientoData['ocupado'] == true) {
-        throw Exception(
-          'El asiento $_asientoSeleccionado acaba de ser ocupado. Elige otro.',
-        );
-      }
-
-      // ── Transacción atómica ──────────────────────────────────────
       await _db.runTransaction((tx) async {
+        // 1. Leer usuario
         final userRef = _db.collection('usuarios').doc(cedula);
-        final camRef = _db.collection('camionetas').doc(widget.camionetaId);
+        final userSnap = await tx.get(userRef);
+        if (!userSnap.exists) throw Exception('Usuario no encontrado.');
 
-        tx.update(userRef, {'saldo': FieldValue.increment(-1)});
-        tx.update(camRef, {
-          'asientos.$key.ocupado': true,
-          'asientos.$key.cedula_pasajero': cedula,
-        });
+        final userData = userSnap.data()!;
+        final saldo = (userData['saldo'] as num?)?.toDouble() ?? 0.0;
+        final mensualidadActiva =
+            userData['mensualidad_activa'] as bool? ?? false;
+
+        // 2. Validar fondos usando tarifa del rol real (leida desde Firestore)
+        final rolStr = userData['rol'] as String? ?? '';
+        final rolFirestore = RolUsuario.values.firstWhere(
+          (r) => r.name == rolStr,
+          orElse: () => RolUsuario.visitante,
+        );
+        final costoReal =
+            _calcularCosto(mensualidadActiva, cantidad, rolFirestore);
+        if (saldo < costoReal) {
+          throw Exception('Saldo insuficiente (\$${saldo.toStringAsFixed(2)}). '
+              'Necesitas \$${costoReal.toStringAsFixed(2)}.');
+        }
+
+        // 3. Leer camioneta
+        final camRef = _db.collection('camionetas').doc(widget.camionetaId);
+        final camSnap = await tx.get(camRef);
+        if (!camSnap.exists) throw Exception('Camioneta no encontrada.');
+
+        final camData = camSnap.data()!;
+        final asientos = (camData['asientos'] as Map<String, dynamic>?) ?? {};
+
+        // 4. Verificar que la unidad no arranco
+        final estadoUnidad = camData['estado'] as String? ?? 'disponible';
+        if (estadoUnidad == 'en_camino') {
+          throw Exception('__UNIDAD_EN_CAMINO__');
+        }
+
+        // 5. Colision: todos los asientos seleccionados deben estar libres
+        for (final n in _asientosSeleccionados) {
+          final key = '$n';
+          final asientoData = asientos[key];
+          if (asientoData is Map && asientoData['ocupado'] == true) {
+            throw Exception(
+                'El asiento $n fue tomado en este momento. Selecciona otro.');
+          }
+        }
+
+        // 6. Control de fraude: usuario ya tiene asiento + solo selecciono 1
+        final yaReservado = _usuarioTieneAsiento(asientos, cedula);
+        if (yaReservado && cantidad == 1) {
+          throw Exception(
+              'Ya tienes un asiento reservado. Puedes agregar mas asientos para acompaniantes.');
+        }
+
+        // 7. Escrituras atomicas
+        final Map<String, dynamic> updates = {};
+        int idx = 0;
+        for (final n in _asientosSeleccionados) {
+          final key = 'asientos.$n';
+          final esPrimero = idx == 0 && !yaReservado;
+          updates['$key.ocupado'] = true;
+          updates['$key.cedula_pasajero'] = cedula;
+          updates['$key.nombre_pasajero'] = auth.nombreCompleto ?? '';
+          updates['$key.estado_pago'] =
+              (mensualidadActiva && esPrimero) ? 'mensualidad' : 'pagado';
+          idx++;
+        }
+        tx.update(camRef, updates);
+
+        // 8. Descontar saldo
+        if (costoReal > 0) {
+          tx.update(userRef, {'saldo': FieldValue.increment(-costoReal)});
+        }
       });
 
       if (!context.mounted) return;
-
-      // ── Mostrar boleto digital ───────────────────────────────────
+      await context.read<AuthProvider>().refrescarDatosUsuario();
       await _mostrarBoleto(context);
     } catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('❌ ${e.toString().replaceAll('Exception: ', '')}'),
-          backgroundColor: Theme.of(context).colorScheme.error,
-        ),
-      );
+      final msg = e.toString().replaceAll('Exception: ', '');
+      if (msg.contains('__UNIDAD_EN_CAMINO__')) {
+        _manejarExpulsion(context);
+        return;
+      }
+      _mostrarErrorSnack(context, msg);
     } finally {
       if (mounted) setState(() => _procesando = false);
     }
   }
 
-  // ── Boleto digital en diálogo ────────────────────────────────────
+  void _manejarExpulsion(BuildContext context) {
+    if (_yaFueExpulsado) return;
+    _yaFueExpulsado = true;
+
+    final ahora = DateTime.now();
+    final siguiente = ahora.add(const Duration(minutes: 30));
+    final h12 = siguiente.hour > 12
+        ? siguiente.hour - 12
+        : siguiente.hour == 0
+            ? 12
+            : siguiente.hour;
+    final ampm = siguiente.hour < 12 ? 'AM' : 'PM';
+    final horaStr =
+        '${h12.toString().padLeft(2, '0')}:${siguiente.minute.toString().padLeft(2, '0')} $ampm';
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        icon: const Icon(Icons.directions_bus_rounded,
+            color: Colors.orange, size: 44),
+        title: const Text('Ya arranco!'),
+        content: Text(
+          'Ya arranco, lo siento :(\n\nProxima en llegar: $horaStr',
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 15),
+        ),
+        actions: [
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: _kAzul),
+            onPressed: () {
+              Navigator.of(_).pop();
+              Navigator.of(context).pop();
+            },
+            child: const Text('Volver al inicio'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _mostrarErrorSnack(BuildContext context, String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Row(children: [
+        const Icon(Icons.error_outline, color: Colors.white, size: 18),
+        const SizedBox(width: 8),
+        Expanded(child: Text(msg, style: const TextStyle(fontSize: 13))),
+      ]),
+      backgroundColor: Colors.red.shade700,
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      duration: const Duration(seconds: 4),
+    ));
+  }
+
   Future<void> _mostrarBoleto(BuildContext context) async {
     final auth = context.read<AuthProvider>();
+    final rol = auth.rolSeleccionado;
+    final costo = _calcularCosto(
+        auth.mensualidadActiva, _asientosSeleccionados.length, rol);
+
     await showDialog(
       context: context,
       barrierDismissible: false,
       builder: (_) => _DialogoBoleto(
         nombre: auth.nombreCompleto ?? '',
         camionetaId: widget.camionetaId,
-        numeroAsiento: _asientoSeleccionado!,
+        asientos: _asientosSeleccionados.toList()..sort(),
+        costoTotal: costo,
+        usoPlan: auth.mensualidadActiva,
+        nombrePlan: Tarifas.nombrePlan(rol),
         onCerrar: () {
-          Navigator.of(_).pop(); // cierra diálogo
-          Navigator.of(context).pop(); // regresa al home
+          Navigator.of(_).pop();
+          Navigator.of(context).pop();
         },
       ),
     );
   }
 
-  // ── Build ────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
+
     return Scaffold(
       appBar: AppBar(
-        title: Text('Asientos — ${widget.camionetaId}'),
-        centerTitle: true,
+        title: Text('Asientos - ${widget.camionetaId}'),
+        backgroundColor: _kAzul,
+        foregroundColor: Colors.white,
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: Center(
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: auth.mensualidadActiva
+                      ? Colors.green.withOpacity(0.25)
+                      : Colors.white.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(
+                    auth.mensualidadActiva
+                        ? Icons.card_membership
+                        : Icons.account_balance_wallet_outlined,
+                    size: 14,
+                    color: Colors.white,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    auth.mensualidadActiva
+                        ? Tarifas.nombrePlan(auth.rolSeleccionado)
+                        : '\$${auth.saldo.toStringAsFixed(2)}',
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold),
+                  ),
+                ]),
+              ),
+            ),
+          ),
+        ],
       ),
       body: StreamBuilder<DocumentSnapshot>(
         stream:
             _db.collection('camionetas').doc(widget.camionetaId).snapshots(),
         builder: (context, snap) {
-          if (snap.connectionState == ConnectionState.waiting) {
+          if (!snap.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
-
-          if (snap.hasError || !snap.hasData || !snap.data!.exists) {
-            return const Center(child: Text('No se pudo cargar la camioneta.'));
+          if (!snap.data!.exists) {
+            return const Center(child: Text('Unidad no encontrada.'));
           }
 
           final data = snap.data!.data() as Map<String, dynamic>;
           final asientos = (data['asientos'] as Map<String, dynamic>?) ?? {};
-          final destino = data['destino'] as String? ?? '';
+          final estadoUnidad = data['estado'] as String? ?? 'disponible';
 
-          // Si el asiento que el usuario tenía seleccionado se ocupa
-          // mientras está mirando, lo deseleccionamos automáticamente.
-          if (_asientoSeleccionado != null) {
-            final key = '$_asientoSeleccionado';
-            final aData = asientos[key];
-            if (aData is Map && aData['ocupado'] == true) {
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (mounted) setState(() => _asientoSeleccionado = null);
-              });
-            }
+          // Expulsion automatica via stream
+          if (estadoUnidad == 'en_camino' && !_yaFueExpulsado && !_procesando) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) _manejarExpulsion(context);
+            });
           }
 
-          return Column(
-            children: [
-              // ── Info camioneta ──────────────────────────────────
-              _HeaderCamioneta(
-                camionetaId: widget.camionetaId,
-                destino: destino,
-              ),
+          final tienePlan = auth.mensualidadActiva;
+          final rolActual = auth.rolSeleccionado;
+          final costoEstimado = _calcularCosto(
+              tienePlan, _asientosSeleccionados.length, rolActual);
+          final saldoSuficiente = tienePlan || auth.saldo >= costoEstimado;
+          final yaTieneAsiento = auth.cedulaActual != null &&
+              _usuarioTieneAsiento(asientos, auth.cedulaActual!);
 
-              // ── Leyenda de colores ──────────────────────────────
-              const _LeyendaAsientos(),
+          return Column(children: [
+            // Banner cabina si esta en movimiento
+            if (estadoUnidad == 'en_camino')
+              _BannerCabinaAnimado(estadoUnidad: estadoUnidad),
 
-              // ── Cabina del conductor ────────────────────────────
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 4,
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.drive_eta, size: 18, color: Colors.grey),
-                    const SizedBox(width: 6),
-                    Text(
-                      'Conductor',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey.shade600,
-                      ),
-                    ),
-                    const Spacer(),
-                    Text(
-                      '← Frente del vehículo',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: Colors.grey.shade400,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+            // Header de la unidad
+            _HeaderCamioneta(
+              camionetaId: widget.camionetaId,
+              destino: data['destino'] as String? ?? 'Sin destino',
+              modelo: data['modelo'] as String? ?? '',
+              colorUnidad: data['color'] as String? ?? '',
+              yaReservado: yaTieneAsiento,
+            ),
 
-              // ── Cuadrícula de asientos ──────────────────────────
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: _CuadriculaAsientos(
-                    asientos: asientos,
-                    asientoSeleccionado: _asientoSeleccionado,
-                    estadoAsiento: (n) => _estadoAsiento(n, asientos),
-                    onTap: (n) {
-                      final estado = _estadoAsiento(n, asientos);
-                      if (estado == EstadoAsiento.ocupado) return;
-                      setState(() {
-                        _asientoSeleccionado =
-                            _asientoSeleccionado == n ? null : n;
-                      });
-                    },
-                  ),
+            // Leyenda clara con 3 estados
+            const _LeyendaAsientos(),
+
+            // Mapa de asientos
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(14),
+                child: _MapaCamionetaV4(
+                  asientos: asientos,
+                  asientosSeleccionados: _asientosSeleccionados,
+                  estadoAsientoFn: _estadoAsiento,
+                  cedulaActual: auth.cedulaActual ?? '',
+                  onToggleAsiento: (n) {
+                    setState(() {
+                      if (_asientosSeleccionados.contains(n)) {
+                        _asientosSeleccionados.remove(n);
+                      } else {
+                        _asientosSeleccionados.add(n);
+                      }
+                    });
+                  },
                 ),
               ),
+            ),
 
-              // ── Botón reservar ──────────────────────────────────
-              _BarraReserva(
-                asientoSeleccionado: _asientoSeleccionado,
-                procesando: _procesando,
-                onReservar: () => _reservar(context),
-              ),
-            ],
-          );
+            // Panel de confirmacion con chips funcionales
+            _PanelConfirmacionMulti(
+              asientosSeleccionados: _asientosSeleccionados,
+              mensualidadActiva: tienePlan,
+              costoTotal: costoEstimado,
+              saldo: auth.saldo,
+              procesando: _procesando,
+              saldoSuficiente: saldoSuficiente,
+              onReservar: () => _reservar(context),
+              // Callback de deseleccion funcional
+              onDeseleccionar: _deseleccionar,
+              tarifaAdicional: Tarifas.pasaje(rolActual),
+              nombrePlan: Tarifas.nombrePlan(rolActual),
+            ),
+          ]);
         },
       ),
     );
@@ -235,54 +419,251 @@ class _SeleccionAsientosVistaState extends State<SeleccionAsientosVista> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// HEADER INFO CAMIONETA
+// MAPA DE CAMIONETA V4
+// Conductor IZQUIERDA, Puerta delantera DERECHA
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _HeaderCamioneta extends StatelessWidget {
-  final String camionetaId;
-  final String destino;
-  const _HeaderCamioneta({required this.camionetaId, required this.destino});
+class _MapaCamionetaV4 extends StatelessWidget {
+  final Map<String, dynamic> asientos;
+  final Set<int> asientosSeleccionados;
+  final EstadoAsiento Function(int, Map<String, dynamic>) estadoAsientoFn;
+  final String cedulaActual;
+  final void Function(int) onToggleAsiento;
+
+  const _MapaCamionetaV4({
+    required this.asientos,
+    required this.asientosSeleccionados,
+    required this.estadoAsientoFn,
+    required this.cedulaActual,
+    required this.onToggleAsiento,
+  });
+
+  bool _esMiAsiento(int numero) {
+    final data = asientos['$numero'];
+    if (data is Map) {
+      return data['ocupado'] == true && data['cedula_pasajero'] == cedulaActual;
+    }
+    return false;
+  }
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-      color: colors.primaryContainer,
-      child: Row(
-        children: [
-          Icon(Icons.airport_shuttle_outlined, color: colors.primary),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.grey.shade300, width: 1.5),
+      ),
+      padding: const EdgeInsets.all(14),
+      child: Column(children: [
+        // Fila cabecera: CONDUCTOR IZQUIERDA, PUERTA DELANTERA DERECHA
+        Row(children: [
+          _AsientoConductor(),
+          const Spacer(),
+          _CeldaPuerta(label: 'Puerta delantera', color: Colors.blue.shade100),
+        ]),
+        const SizedBox(height: 10),
+
+        // Filas 1-5: asientos 1-20
+        ...List.generate(5, (filaIdx) {
+          final base = filaIdx * 4;
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                Text(
-                  camionetaId,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15,
-                  ),
+                _AsientoWidget(
+                  numero: base + 1,
+                  estado: estadoAsientoFn(base + 1, asientos),
+                  seleccionado: asientosSeleccionados.contains(base + 1),
+                  esMio: _esMiAsiento(base + 1),
+                  onTap: () => onToggleAsiento(base + 1),
                 ),
-                Text(
-                  destino,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: colors.onSurface.withOpacity(0.6),
-                  ),
+                _AsientoWidget(
+                  numero: base + 2,
+                  estado: estadoAsientoFn(base + 2, asientos),
+                  seleccionado: asientosSeleccionados.contains(base + 2),
+                  esMio: _esMiAsiento(base + 2),
+                  onTap: () => onToggleAsiento(base + 2),
+                ),
+                const SizedBox(width: 20), // Pasillo
+                _AsientoWidget(
+                  numero: base + 3,
+                  estado: estadoAsientoFn(base + 3, asientos),
+                  seleccionado: asientosSeleccionados.contains(base + 3),
+                  esMio: _esMiAsiento(base + 3),
+                  onTap: () => onToggleAsiento(base + 3),
+                ),
+                _AsientoWidget(
+                  numero: base + 4,
+                  estado: estadoAsientoFn(base + 4, asientos),
+                  seleccionado: asientosSeleccionados.contains(base + 4),
+                  esMio: _esMiAsiento(base + 4),
+                  onTap: () => onToggleAsiento(base + 4),
                 ),
               ],
             ),
+          );
+        }),
+
+        // Ultima fila: asientos 21-22 + Puerta trasera
+        Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _AsientoWidget(
+                numero: 21,
+                estado: estadoAsientoFn(21, asientos),
+                seleccionado: asientosSeleccionados.contains(21),
+                esMio: _esMiAsiento(21),
+                onTap: () => onToggleAsiento(21),
+              ),
+              _AsientoWidget(
+                numero: 22,
+                estado: estadoAsientoFn(22, asientos),
+                seleccionado: asientosSeleccionados.contains(22),
+                esMio: _esMiAsiento(22),
+                onTap: () => onToggleAsiento(22),
+              ),
+              const SizedBox(width: 20),
+              _CeldaPuerta(
+                  label: 'Puerta trasera', color: Colors.green.shade100),
+            ],
           ),
+        ),
+      ]),
+    );
+  }
+}
+
+class _AsientoWidget extends StatelessWidget {
+  final int numero;
+  final EstadoAsiento estado;
+  final bool seleccionado;
+  final bool esMio;
+  final VoidCallback onTap;
+
+  const _AsientoWidget({
+    required this.numero,
+    required this.estado,
+    required this.seleccionado,
+    required this.esMio,
+    required this.onTap,
+  });
+
+  Color get _bg {
+    if (esMio) return Colors.purple.shade200;
+    if (seleccionado) return _kAzul;
+    return estado == EstadoAsiento.ocupado
+        ? Colors.red.shade100
+        : Colors.green.shade100;
+  }
+
+  Color get _border {
+    if (esMio) return Colors.purple.shade400;
+    if (seleccionado) return _kAzul;
+    return estado == EstadoAsiento.ocupado
+        ? Colors.red.shade400
+        : Colors.green.shade400;
+  }
+
+  Color get _fg {
+    if (esMio) return Colors.purple.shade800;
+    if (seleccionado) return Colors.white;
+    return estado == EstadoAsiento.ocupado
+        ? Colors.red.shade700
+        : Colors.green.shade800;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: estado == EstadoAsiento.ocupado && !esMio ? null : onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        width: 52,
+        height: 52,
+        decoration: BoxDecoration(
+          color: _bg,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: _border, width: 1.5),
+          boxShadow: seleccionado
+              ? [BoxShadow(color: _kAzul.withOpacity(0.4), blurRadius: 6)]
+              : null,
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              esMio
+                  ? Icons.person_pin_rounded
+                  : estado == EstadoAsiento.ocupado
+                      ? Icons.person_rounded
+                      : Icons.event_seat_rounded,
+              size: 20,
+              color: _fg,
+            ),
+            Text('$numero',
+                style: TextStyle(
+                    fontSize: 10, color: _fg, fontWeight: FontWeight.bold)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AsientoConductor extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 58,
+      height: 58,
+      decoration: BoxDecoration(
+        color: _kAzul,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white, width: 2),
+        boxShadow: [BoxShadow(color: _kAzul.withOpacity(0.5), blurRadius: 8)],
+      ),
+      child: const Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.settings_input_svideo_rounded,
+              color: Colors.white, size: 22),
+          Text('Chofer',
+              style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 9,
+                  fontWeight: FontWeight.bold)),
         ],
       ),
     );
   }
 }
 
+class _CeldaPuerta extends StatelessWidget {
+  final String label;
+  final Color color;
+  const _CeldaPuerta({required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.blue.shade200.withOpacity(0.5)),
+      ),
+      child: Text(label,
+          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+    );
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
-// LEYENDA DE ASIENTOS
+// LEYENDA (3 estados)
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _LeyendaAsientos extends StatelessWidget {
@@ -291,15 +672,30 @@ class _LeyendaAsientos extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          _ItemLeyenda(color: Colors.green.shade400, texto: 'Libre'),
-          const SizedBox(width: 16),
-          _ItemLeyenda(color: Colors.red.shade400, texto: 'Ocupado'),
-          const SizedBox(width: 16),
-          _ItemLeyenda(color: Colors.blue.shade400, texto: 'Seleccionado'),
+          _ItemLeyenda(
+              colorFondo: Colors.green.shade100,
+              colorBorde: Colors.green.shade400,
+              texto: 'Libre',
+              icono: Icons.event_seat_rounded,
+              colorIcono: Colors.green.shade700),
+          const SizedBox(width: 14),
+          _ItemLeyenda(
+              colorFondo: Colors.red.shade100,
+              colorBorde: Colors.red.shade400,
+              texto: 'Ocupado',
+              icono: Icons.person_rounded,
+              colorIcono: Colors.red.shade700),
+          const SizedBox(width: 14),
+          _ItemLeyenda(
+              colorFondo: _kAzul,
+              colorBorde: _kAzul,
+              texto: 'Seleccionado',
+              icono: Icons.event_seat_rounded,
+              colorIcono: Colors.white),
         ],
       ),
     );
@@ -307,411 +703,389 @@ class _LeyendaAsientos extends StatelessWidget {
 }
 
 class _ItemLeyenda extends StatelessWidget {
-  final Color color;
+  final Color colorFondo;
+  final Color colorBorde;
   final String texto;
-  const _ItemLeyenda({required this.color, required this.texto});
+  final IconData icono;
+  final Color colorIcono;
 
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 18,
-          height: 18,
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(4),
-          ),
-        ),
-        const SizedBox(width: 5),
-        Text(texto, style: const TextStyle(fontSize: 12)),
-      ],
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// CUADRÍCULA DE ASIENTOS
-// Distribución: 6 filas × 4 columnas con pasillo central (col 1|2 _ col 3|4)
-// Asientos del 1 al 24 numerados fila por fila de izquierda a derecha
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _CuadriculaAsientos extends StatelessWidget {
-  final Map<String, dynamic> asientos;
-  final int? asientoSeleccionado;
-  final EstadoAsiento Function(int) estadoAsiento;
-  final void Function(int) onTap;
-
-  const _CuadriculaAsientos({
-    required this.asientos,
-    required this.asientoSeleccionado,
-    required this.estadoAsiento,
-    required this.onTap,
+  const _ItemLeyenda({
+    required this.colorFondo,
+    required this.colorBorde,
+    required this.texto,
+    required this.icono,
+    required this.colorIcono,
   });
 
   @override
   Widget build(BuildContext context) {
-    // 6 filas, cada fila: [asientoA, asientoB, PASILLO, asientoC, asientoD]
-    // Numeración: fila 1 → 1,2,3,4 | fila 2 → 5,6,7,8 ... fila 6 → 21,22,23,24
-    return ListView.builder(
-      itemCount: 6,
-      physics: const NeverScrollableScrollPhysics(),
-      itemBuilder: (context, filaIdx) {
-        final base = filaIdx * 4; // primer asiento de la fila (0-based)
-        final numeros = [base + 1, base + 2, base + 3, base + 4];
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      Container(
+        width: 24,
+        height: 24,
+        decoration: BoxDecoration(
+          color: colorFondo,
+          borderRadius: BorderRadius.circular(5),
+          border: Border.all(color: colorBorde),
+        ),
+        child: Icon(icono, size: 14, color: colorIcono),
+      ),
+      const SizedBox(width: 5),
+      Text(texto, style: const TextStyle(fontSize: 11)),
+    ]);
+  }
+}
 
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 5),
-          child: Row(
+// ─────────────────────────────────────────────────────────────────────────────
+// HEADER CAMIONETA
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _HeaderCamioneta extends StatelessWidget {
+  final String camionetaId;
+  final String destino;
+  final String modelo;
+  final String colorUnidad;
+  final bool yaReservado;
+
+  const _HeaderCamioneta({
+    required this.camionetaId,
+    required this.destino,
+    required this.modelo,
+    required this.colorUnidad,
+    required this.yaReservado,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      color: const Color(0xFFEEEAF8),
+      child: Row(children: [
+        const Icon(Icons.airport_shuttle_outlined, color: _kAzul),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Etiqueta de fila
-              SizedBox(
-                width: 24,
-                child: Text(
-                  '${filaIdx + 1}',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
-                ),
-              ),
-              const SizedBox(width: 4),
-              // Asiento izquierdo A
-              Expanded(
-                child: _Asiento(
-                  numero: numeros[0],
-                  estado: asientoSeleccionado == numeros[0]
-                      ? EstadoAsiento.seleccionado
-                      : estadoAsiento(numeros[0]),
-                  onTap: onTap,
-                ),
-              ),
-              const SizedBox(width: 4),
-              // Asiento izquierdo B
-              Expanded(
-                child: _Asiento(
-                  numero: numeros[1],
-                  estado: asientoSeleccionado == numeros[1]
-                      ? EstadoAsiento.seleccionado
-                      : estadoAsiento(numeros[1]),
-                  onTap: onTap,
-                ),
-              ),
-              // Pasillo
-              const SizedBox(width: 24),
-              // Asiento derecho C
-              Expanded(
-                child: _Asiento(
-                  numero: numeros[2],
-                  estado: asientoSeleccionado == numeros[2]
-                      ? EstadoAsiento.seleccionado
-                      : estadoAsiento(numeros[2]),
-                  onTap: onTap,
-                ),
-              ),
-              const SizedBox(width: 4),
-              // Asiento derecho D
-              Expanded(
-                child: _Asiento(
-                  numero: numeros[3],
-                  estado: asientoSeleccionado == numeros[3]
-                      ? EstadoAsiento.seleccionado
-                      : estadoAsiento(numeros[3]),
-                  onTap: onTap,
-                ),
-              ),
+              Text('$modelo - $camionetaId',
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      color: _kAzul)),
+              Text('$destino  |  Color: $colorUnidad',
+                  style: const TextStyle(fontSize: 12, color: Colors.black54)),
             ],
           ),
-        );
-      },
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// WIDGET INDIVIDUAL DE ASIENTO
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _Asiento extends StatelessWidget {
-  final int numero;
-  final EstadoAsiento estado;
-  final void Function(int) onTap;
-
-  const _Asiento({
-    required this.numero,
-    required this.estado,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final (bgColor, borderColor, textColor, icono) = switch (estado) {
-      EstadoAsiento.libre => (
-          Colors.green.shade50,
-          Colors.green.shade400,
-          Colors.green.shade700,
-          Icons.event_seat_outlined,
         ),
-      EstadoAsiento.ocupado => (
-          Colors.red.shade50,
-          Colors.red.shade300,
-          Colors.red.shade400,
-          Icons.event_seat,
-        ),
-      EstadoAsiento.seleccionado => (
-          Colors.blue.shade100,
-          Colors.blue.shade600,
-          Colors.blue.shade800,
-          Icons.event_seat,
-        ),
-    };
-
-    return GestureDetector(
-      onTap: estado == EstadoAsiento.ocupado ? null : () => onTap(numero),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        decoration: BoxDecoration(
-          color: bgColor,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: borderColor, width: 1.5),
-          boxShadow: estado == EstadoAsiento.seleccionado
-              ? [
-                  BoxShadow(
-                    color: Colors.blue.withOpacity(0.3),
-                    blurRadius: 6,
-                    offset: const Offset(0, 2),
-                  ),
-                ]
-              : null,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icono, size: 22, color: textColor),
-            const SizedBox(height: 2),
-            Text(
-              '$numero',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-                color: textColor,
-              ),
+        if (yaReservado)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.purple.shade100,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.purple.shade300),
             ),
-          ],
-        ),
-      ),
+            child: const Text('Asiento reservado',
+                style: TextStyle(
+                    fontSize: 10,
+                    color: Colors.purple,
+                    fontWeight: FontWeight.bold)),
+          ),
+      ]),
     );
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// BARRA INFERIOR DE RESERVA
+// PANEL DE CONFIRMACION MULTI - con onDeleted funcional
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _BarraReserva extends StatelessWidget {
-  final int? asientoSeleccionado;
+class _PanelConfirmacionMulti extends StatelessWidget {
+  final Set<int> asientosSeleccionados;
+  final bool mensualidadActiva;
+  final double costoTotal;
+  final double saldo;
   final bool procesando;
+  final bool saldoSuficiente;
   final VoidCallback onReservar;
+  // Callback que recibe el numero de asiento a deseleccionar
+  final void Function(int) onDeseleccionar;
+  // Tarifa por asiento adicional (viene de Tarifas.pasaje)
+  final double tarifaAdicional;
+  // Nombre del plan activo del usuario (viene de Tarifas.nombrePlan)
+  final String nombrePlan;
 
-  const _BarraReserva({
-    required this.asientoSeleccionado,
+  const _PanelConfirmacionMulti({
+    required this.asientosSeleccionados,
+    required this.mensualidadActiva,
+    required this.costoTotal,
+    required this.saldo,
     required this.procesando,
+    required this.saldoSuficiente,
     required this.onReservar,
+    required this.onDeseleccionar,
+    required this.tarifaAdicional,
+    required this.nombrePlan,
   });
+
+  String get _textoBoton {
+    if (procesando) return 'Procesando...';
+    if (asientosSeleccionados.isEmpty) return 'Selecciona asiento(s)';
+    if (mensualidadActiva && costoTotal == 0) {
+      return 'Reservar ${asientosSeleccionados.length} asiento(s) - $nombrePlan';
+    }
+    return 'Reservar ${asientosSeleccionados.length} asiento(s) - \$${costoTotal.toStringAsFixed(2)}';
+  }
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
+    final listaOrdenada = asientosSeleccionados.toList()..sort();
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
       decoration: BoxDecoration(
-        color: colors.surface,
+        color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: colors.shadow.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, -3),
-          ),
+              color: Colors.black.withOpacity(0.08),
+              blurRadius: 12,
+              offset: const Offset(0, -2))
         ],
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (asientoSeleccionado != null)
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        if (asientosSeleccionados.isNotEmpty) ...[
+          // Chips con onDeleted FUNCIONAL: remueve el asiento del Set
+          Wrap(
+            spacing: 6,
+            runSpacing: 4,
+            alignment: WrapAlignment.center,
+            children: listaOrdenada.map((n) {
+              return Chip(
+                label: Text('Asiento $n',
+                    style: const TextStyle(fontSize: 11, color: _kAzul)),
+                backgroundColor: const Color(0xFFEEEAF8),
+                side: const BorderSide(color: _kAzul),
+                padding: EdgeInsets.zero,
+                deleteIcon: const Icon(Icons.close, size: 14, color: _kAzul),
+                // onDeleted funcional: llama al callback con el numero
+                onDeleted: () => onDeseleccionar(n),
+              );
+            }).toList(),
+          ),
+          if (mensualidadActiva)
             Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.event_seat, color: colors.primary, size: 18),
-                  const SizedBox(width: 6),
-                  Text(
-                    'Asiento $asientoSeleccionado seleccionado',
-                    style: TextStyle(
-                      color: colors.primary,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
+              padding: const EdgeInsets.only(top: 6, bottom: 4),
+              child: Text(
+                asientosSeleccionados.length > 1
+                    ? '$nombrePlan: 1 gratis + ${asientosSeleccionados.length - 1} adicional(es) a \$${tarifaAdicional.toStringAsFixed(2)}'
+                    : '$nombrePlan: asiento gratis',
+                style: TextStyle(
+                    color: Colors.green.shade700,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500),
+                textAlign: TextAlign.center,
               ),
             ),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              onPressed: (asientoSeleccionado == null || procesando)
-                  ? null
-                  : onReservar,
-              icon: procesando
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : const Icon(Icons.confirmation_number_outlined),
-              label: Text(
-                procesando
-                    ? 'Procesando...'
-                    : asientoSeleccionado == null
-                        ? 'Selecciona un asiento'
-                        : 'Reservar Asiento por \$1',
-                style: const TextStyle(fontSize: 16),
-              ),
-              style: FilledButton.styleFrom(
-                minimumSize: const Size.fromHeight(52),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
+          const SizedBox(height: 8),
+        ],
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton.icon(
+            onPressed: (asientosSeleccionados.isEmpty ||
+                    procesando ||
+                    !saldoSuficiente)
+                ? null
+                : onReservar,
+            icon: procesando
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white))
+                : const Icon(Icons.confirmation_number_outlined),
+            label: Text(_textoBoton, style: const TextStyle(fontSize: 15)),
+            style: FilledButton.styleFrom(
+              backgroundColor: _kAzul,
+              minimumSize: const Size.fromHeight(52),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
             ),
           ),
-        ],
+        ),
+      ]),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BANNER CABINA ANIMADO
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _BannerCabinaAnimado extends StatefulWidget {
+  final String estadoUnidad;
+  const _BannerCabinaAnimado({required this.estadoUnidad});
+
+  @override
+  State<_BannerCabinaAnimado> createState() => _BannerCabinaAnimadoState();
+}
+
+class _BannerCabinaAnimadoState extends State<_BannerCabinaAnimado>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _anim;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl =
+        AnimationController(vsync: this, duration: const Duration(seconds: 2))
+          ..repeat(reverse: true);
+    _anim = Tween<double>(begin: 0.85, end: 1.0)
+        .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _anim,
+      builder: (_, __) => Opacity(
+        opacity: _anim.value,
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color(0xFF0E004A), Color(0xFF3A0CA3)],
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+            ),
+          ),
+          child: const Row(children: [
+            Icon(Icons.directions_bus_rounded, color: Colors.white70, size: 20),
+            SizedBox(width: 10),
+            Text(
+              'Puertas Aseguradas / Iniciando Viaje',
+              style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13),
+            ),
+          ]),
+        ),
       ),
     );
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DIÁLOGO BOLETO DIGITAL
+// BOLETO DIGITAL MULTI-ASIENTO
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _DialogoBoleto extends StatelessWidget {
   final String nombre;
   final String camionetaId;
-  final int numeroAsiento;
+  final List<int> asientos;
+  final double costoTotal;
+  final bool usoPlan;
+  // Nombre dinamico del plan: "Plan Usemista" o "Plan Empleado"
+  final String nombrePlan;
   final VoidCallback onCerrar;
 
   const _DialogoBoleto({
     required this.nombre,
     required this.camionetaId,
-    required this.numeroAsiento,
+    required this.asientos,
+    required this.costoTotal,
+    required this.usoPlan,
+    required this.nombrePlan,
     required this.onCerrar,
   });
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
     final ahora = DateTime.now();
+    final h12 = ahora.hour > 12
+        ? ahora.hour - 12
+        : ahora.hour == 0
+            ? 12
+            : ahora.hour;
+    final ampm = ahora.hour < 12 ? 'AM' : 'PM';
     final horaStr =
-        '${ahora.hour.toString().padLeft(2, '0')}:${ahora.minute.toString().padLeft(2, '0')}';
-    final fechaStr =
-        '${ahora.day.toString().padLeft(2, '0')}/${ahora.month.toString().padLeft(2, '0')}/${ahora.year}';
+        '${h12.toString().padLeft(2, '0')}:${ahora.minute.toString().padLeft(2, '0')} $ampm';
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: Padding(
         padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Ícono de éxito
-            CircleAvatar(
-              radius: 32,
-              backgroundColor: Colors.green.shade50,
-              child: Icon(
-                Icons.check_circle_rounded,
-                color: Colors.green.shade600,
-                size: 40,
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            Text(
-              '¡Reserva Confirmada!',
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          CircleAvatar(
+            radius: 32,
+            backgroundColor: Colors.green.shade50,
+            child: Icon(Icons.check_circle_rounded,
+                color: Colors.green.shade600, size: 40),
+          ),
+          const SizedBox(height: 16),
+          Text('Reserva Confirmada!',
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.green.shade700,
-                  ),
+                  fontWeight: FontWeight.bold, color: Colors.green.shade700)),
+          const SizedBox(height: 20),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFFEEEAF8),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: _kAzul.withOpacity(0.3), width: 1.5),
             ),
-            const SizedBox(height: 20),
-
-            // Tarjeta boleto
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: colors.primaryContainer,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: colors.primary.withOpacity(0.3),
-                  width: 1.5,
-                ),
-              ),
-              child: Column(
-                children: [
-                  _FilaBoleto(
-                    icono: Icons.person_outline,
-                    label: 'Pasajero',
-                    valor: nombre,
-                  ),
-                  const Divider(height: 16),
-                  _FilaBoleto(
-                    icono: Icons.airport_shuttle_outlined,
-                    label: 'Unidad',
-                    valor: camionetaId,
-                  ),
-                  const Divider(height: 16),
-                  _FilaBoleto(
-                    icono: Icons.event_seat_outlined,
-                    label: 'Asiento',
-                    valor: '$numeroAsiento',
-                  ),
-                  const Divider(height: 16),
-                  _FilaBoleto(
-                    icono: Icons.schedule,
-                    label: 'Hora',
-                    valor: '$horaStr · $fechaStr',
-                  ),
-                  const Divider(height: 16),
-                  _FilaBoleto(
-                    icono: Icons.attach_money,
-                    label: 'Pagado',
-                    valor: '\$1',
-                  ),
-                ],
+            child: Column(children: [
+              _FilaBoleto(
+                  icono: Icons.person_outline,
+                  label: 'Pasajero',
+                  valor: nombre),
+              const Divider(height: 16),
+              _FilaBoleto(
+                  icono: Icons.airport_shuttle_outlined,
+                  label: 'Unidad',
+                  valor: camionetaId),
+              const Divider(height: 16),
+              _FilaBoleto(
+                  icono: Icons.event_seat_outlined,
+                  label: 'Asiento(s)',
+                  valor: asientos.join(', ')),
+              const Divider(height: 16),
+              _FilaBoleto(icono: Icons.schedule, label: 'Hora', valor: horaStr),
+              const Divider(height: 16),
+              _FilaBoleto(
+                  icono: Icons.attach_money,
+                  label: 'Total',
+                  valor: usoPlan && costoTotal == 0
+                      ? nombrePlan
+                      : '\$${costoTotal.toStringAsFixed(2)}'),
+            ]),
+          ),
+          const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: onCerrar,
+              icon: const Icon(Icons.home_outlined),
+              label: const Text('Volver al Inicio'),
+              style: FilledButton.styleFrom(
+                backgroundColor: _kAzul,
+                minimumSize: const Size.fromHeight(48),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
               ),
             ),
-            const SizedBox(height: 20),
-
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: onCerrar,
-                icon: const Icon(Icons.home_outlined),
-                label: const Text('Volver al Inicio'),
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size.fromHeight(48),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
+          ),
+        ]),
       ),
     );
   }
@@ -721,30 +1095,20 @@ class _FilaBoleto extends StatelessWidget {
   final IconData icono;
   final String label;
   final String valor;
-  const _FilaBoleto({
-    required this.icono,
-    required this.label,
-    required this.valor,
-  });
+  const _FilaBoleto(
+      {required this.icono, required this.label, required this.valor});
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icono, size: 16, color: Theme.of(context).colorScheme.primary),
-        const SizedBox(width: 8),
-        Text(
-          '$label: ',
-          style: const TextStyle(fontSize: 13, color: Colors.grey),
-        ),
-        Expanded(
-          child: Text(
-            valor,
-            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
-            textAlign: TextAlign.right,
-          ),
-        ),
-      ],
-    );
+    return Row(children: [
+      Icon(icono, size: 16, color: _kAzul),
+      const SizedBox(width: 8),
+      Text('$label: ',
+          style: const TextStyle(fontSize: 13, color: Colors.grey)),
+      Expanded(
+          child: Text(valor,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+              textAlign: TextAlign.right)),
+    ]);
   }
 }
