@@ -16,6 +16,9 @@ import 'package:provider/provider.dart';
 
 import '../providers/auth_provider.dart';
 import 'login_vista.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart' as ll;
+import '../feature_eta.dart' as eta_calc;
 
 const Color _kAzul = Color(0xFF0E004A);
 
@@ -543,8 +546,28 @@ class _ConductorHomeVistaState extends State<ConductorHomeVista> {
                   llegadaDetectada: _llegadaDetectada,
                   onToggleRuta: _toggleRuta,
                   onToggleSimulacion: _iniciarSimulacion,
+                  posicionActual: ll.LatLng(
+                    _rutaActual[_pasoSimulacion < _rutaActual.length
+                            ? _pasoSimulacion
+                            : _rutaActual.length - 1]
+                        .latitude,
+                    _rutaActual[_pasoSimulacion < _rutaActual.length
+                            ? _pasoSimulacion
+                            : _rutaActual.length - 1]
+                        .longitude,
+                  ),
+                  ruta: _rutaActual
+                      .map((p) => ll.LatLng(p.latitude, p.longitude))
+                      .toList(),
+                  coordDestino: ll.LatLng(_coordDestino.lat, _coordDestino.lng),
                 ),
+
                 const SizedBox(height: 12),
+                _TarjetaETA(
+                  camionetaId: _camionetaId,
+                  db: _db,
+                  sentidoHaciaUSM: _sentidoHaciaUSM,
+                ),
 
                 // Boton de abordaje/retorno si llego
                 if (_llegadaDetectada)
@@ -853,8 +876,9 @@ class _HeaderConductor extends StatelessWidget {
               duration: const Duration(milliseconds: 300),
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
               decoration: BoxDecoration(
-                color:
-                    emergenciaActiva ? Colors.red : Colors.red.withValues(alpha: 0.2),
+                color: emergenciaActiva
+                    ? Colors.red
+                    : Colors.red.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: Colors.red.shade300),
               ),
@@ -946,7 +970,7 @@ class _TarjetaUnidadConfigurada extends StatelessWidget {
 // TARJETA GPS
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _TarjetaGPS extends StatelessWidget {
+class _TarjetaGPS extends StatefulWidget {
   final bool rutaActiva;
   final bool simulando;
   final int pasoSimulacion;
@@ -955,6 +979,9 @@ class _TarjetaGPS extends StatelessWidget {
   final bool llegadaDetectada;
   final void Function(bool) onToggleRuta;
   final VoidCallback onToggleSimulacion;
+  final ll.LatLng posicionActual;
+  final List<ll.LatLng> ruta;
+  final ll.LatLng coordDestino;
 
   const _TarjetaGPS({
     required this.rutaActiva,
@@ -965,7 +992,27 @@ class _TarjetaGPS extends StatelessWidget {
     required this.llegadaDetectada,
     required this.onToggleRuta,
     required this.onToggleSimulacion,
+    required this.posicionActual,
+    required this.ruta,
+    required this.coordDestino,
   });
+
+  @override
+  State<_TarjetaGPS> createState() => _TarjetaGPSState();
+}
+
+class _TarjetaGPSState extends State<_TarjetaGPS> {
+  final MapController _mapController = MapController();
+
+  @override
+  void didUpdateWidget(covariant _TarjetaGPS oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.posicionActual != widget.posicionActual) {
+      try {
+        _mapController.move(widget.posicionActual, _mapController.camera.zoom);
+      } catch (_) {}
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -987,10 +1034,66 @@ class _TarjetaGPS extends StatelessWidget {
                       fontSize: 16,
                       color: _kAzul)),
             ]),
+            const SizedBox(height: 16),
+
+            // ── MAPA ──
+            ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: SizedBox(
+                height: 200,
+                child: FlutterMap(
+                  mapController: _mapController,
+                  options: MapOptions(
+                    initialCenter: widget.posicionActual,
+                    initialZoom: 14.0,
+                  ),
+                  children: [
+                    TileLayer(
+                      urlTemplate:
+                          'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                      userAgentPackageName: 'com.example.busemistas',
+                    ),
+                    PolylineLayer(
+                      polylines: [
+                        Polyline(
+                          points: widget.ruta,
+                          color: _kAzul.withValues(alpha: 0.6),
+                          strokeWidth: 4,
+                        ),
+                      ],
+                    ),
+                    MarkerLayer(
+                      markers: [
+                        Marker(
+                          point: widget.posicionActual,
+                          width: 50,
+                          height: 50,
+                          child: const Icon(
+                            Icons.directions_bus_rounded,
+                            color: _kAzul,
+                            size: 36,
+                          ),
+                        ),
+                        Marker(
+                          point: widget.coordDestino,
+                          width: 40,
+                          height: 40,
+                          child: Icon(
+                            Icons.flag_rounded,
+                            color: Colors.green.shade700,
+                            size: 30,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
             const SizedBox(height: 20),
 
             // Destino alcanzado
-            if (llegadaDetectada)
+            if (widget.llegadaDetectada)
               Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
@@ -1013,13 +1116,13 @@ class _TarjetaGPS extends StatelessWidget {
             else ...[
               // BOTON GIGANTE
               GestureDetector(
-                onTap: () => onToggleRuta(!rutaActiva),
+                onTap: () => widget.onToggleRuta(!widget.rutaActiva),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 300),
                   height: 130,
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
-                      colors: rutaActiva
+                      colors: widget.rutaActiva
                           ? [Colors.red.shade600, Colors.red.shade800]
                           : [Colors.green.shade500, Colors.green.shade700],
                       begin: Alignment.topLeft,
@@ -1028,7 +1131,7 @@ class _TarjetaGPS extends StatelessWidget {
                     borderRadius: BorderRadius.circular(20),
                     boxShadow: [
                       BoxShadow(
-                        color: rutaActiva
+                        color: widget.rutaActiva
                             ? Colors.red.withValues(alpha: 0.4)
                             : Colors.green.withValues(alpha: 0.4),
                         blurRadius: 16,
@@ -1040,7 +1143,7 @@ class _TarjetaGPS extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Icon(
-                        rutaActiva
+                        widget.rutaActiva
                             ? Icons.stop_circle_rounded
                             : Icons.play_circle_rounded,
                         color: Colors.white,
@@ -1048,7 +1151,7 @@ class _TarjetaGPS extends StatelessWidget {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        rutaActiva ? 'TERMINAR RUTA' : 'INICIAR RUTA',
+                        widget.rutaActiva ? 'TERMINAR RUTA' : 'INICIAR RUTA',
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 22,
@@ -1057,7 +1160,7 @@ class _TarjetaGPS extends StatelessWidget {
                         ),
                       ),
                       Text(
-                        rutaActiva
+                        widget.rutaActiva
                             ? 'Toca para finalizar el servicio'
                             : 'Toca para comenzar el servicio',
                         style: TextStyle(
@@ -1071,7 +1174,7 @@ class _TarjetaGPS extends StatelessWidget {
               ),
 
               // Info de ruta activa
-              if (rutaActiva) ...[
+              if (widget.rutaActiva) ...[
                 const SizedBox(height: 16),
                 Container(
                   padding: const EdgeInsets.all(12),
@@ -1087,7 +1190,7 @@ class _TarjetaGPS extends StatelessWidget {
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(
-                          'Ubicacion: $etiquetaActual',
+                          'Ubicacion: ${widget.etiquetaActual}',
                           style: const TextStyle(
                               fontSize: 12,
                               color: _kAzul,
@@ -1099,8 +1202,8 @@ class _TarjetaGPS extends StatelessWidget {
                     ClipRRect(
                       borderRadius: BorderRadius.circular(6),
                       child: LinearProgressIndicator(
-                        value: totalPasos > 0
-                            ? pasoSimulacion / (totalPasos - 1)
+                        value: widget.totalPasos > 0
+                            ? widget.pasoSimulacion / (widget.totalPasos - 1)
                             : 0,
                         backgroundColor: Colors.grey.shade200,
                         color: _kAzul,
@@ -1109,11 +1212,11 @@ class _TarjetaGPS extends StatelessWidget {
                     ),
                     const SizedBox(height: 10),
                     OutlinedButton.icon(
-                      onPressed: onToggleSimulacion,
-                      icon: Icon(simulando
+                      onPressed: widget.onToggleSimulacion,
+                      icon: Icon(widget.simulando
                           ? Icons.stop_circle_outlined
                           : Icons.play_circle_outlined),
-                      label: Text(simulando
+                      label: Text(widget.simulando
                           ? 'Detener simulacion GPS'
                           : 'Iniciar simulacion GPS'),
                       style: OutlinedButton.styleFrom(
@@ -1134,8 +1237,125 @@ class _TarjetaGPS extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// TARJETA PASAJEROS
+// TARJETA ETA (Tiempo estimado de llegada)
 // ─────────────────────────────────────────────────────────────────────────────
+
+class _TarjetaETA extends StatelessWidget {
+  final String camionetaId;
+  final FirebaseFirestore db;
+  final bool sentidoHaciaUSM;
+
+  const _TarjetaETA({
+    required this.camionetaId,
+    required this.db,
+    required this.sentidoHaciaUSM,
+  });
+
+  double _factorTrafico(String nivel) {
+    switch (nivel) {
+      case 'medio':
+        return 1.3;
+      case 'alto':
+        return 1.7;
+      default:
+        return 1.0;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<DocumentSnapshot>(
+      stream: db.collection('camionetas').doc(camionetaId).snapshots(),
+      builder: (context, snap) {
+        if (!snap.hasData || !snap.data!.exists) {
+          return const SizedBox();
+        }
+
+        final data = snap.data!.data() as Map<String, dynamic>;
+        final ubicacion = data['ubicacion'] as GeoPoint?;
+        final nivelTrafico = data['nivel_trafico'] as String? ?? 'bajo';
+
+        if (ubicacion == null) return const SizedBox();
+
+        final eta = eta_calc.calcularETA(
+          ubicacion.latitude,
+          ubicacion.longitude,
+          factorTrafico: _factorTrafico(nivelTrafico),
+        );
+
+        final destinoData = sentidoHaciaUSM
+            ? eta['parada_universidad']
+            : eta['parada_california'];
+        final nombreDestino =
+            sentidoHaciaUSM ? 'USM (La Florencia)' : 'La California';
+
+        return Card(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          elevation: 2,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: _kAzul.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.timer_rounded, color: _kAzul, size: 28),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Llegada estimada a $nombreDestino',
+                        style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey,
+                            fontWeight: FontWeight.w500)),
+                    const SizedBox(height: 2),
+                    Text('${destinoData['eta_minutos']} min',
+                        style: const TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            color: _kAzul)),
+                    Text('${destinoData['distancia_km']} km restantes',
+                        style:
+                            const TextStyle(fontSize: 11, color: Colors.grey)),
+                  ],
+                ),
+              ),
+              if (nivelTrafico != 'bajo')
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: nivelTrafico == 'alto'
+                        ? Colors.red.shade50
+                        : Colors.orange.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    nivelTrafico == 'alto'
+                        ? '🔴 Trafico alto'
+                        : '🟡 Trafico medio',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: nivelTrafico == 'alto'
+                          ? Colors.red.shade700
+                          : Colors.orange.shade700,
+                    ),
+                  ),
+                ),
+            ]),
+          ),
+        );
+      },
+    );
+  }
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TARJETA PANEL DE CONTROL (Pasajeros + Trafico)
@@ -1180,8 +1400,7 @@ class _TarjetaPanelControlState extends State<_TarjetaPanelControl> {
         final data = snap.data!.data() as Map<String, dynamic>;
         final asientos = (data['asientos'] as Map<String, dynamic>?) ?? {};
         final pasajeros = asientos.entries
-            .where(
-                (e) => e.value is Map && (e.value as Map)['ocupado'] == true)
+            .where((e) => e.value is Map && (e.value as Map)['ocupado'] == true)
             .toList();
         final totalPasajeros = pasajeros.length;
         final nivelActual = data['nivel_trafico'] as String? ?? 'bajo';
@@ -1314,10 +1533,8 @@ class _TarjetaPanelControlState extends State<_TarjetaPanelControl> {
                           final v = entry.value as Map;
                           return _FilaPasajero(
                             asiento: entry.key,
-                            nombre:
-                                v['nombre_pasajero'] as String? ?? '-',
-                            cedula:
-                                v['cedula_pasajero'] as String? ?? '-',
+                            nombre: v['nombre_pasajero'] as String? ?? '-',
+                            cedula: v['cedula_pasajero'] as String? ?? '-',
                             estadoPago:
                                 v['estado_pago'] as String? ?? 'pendiente',
                             camionetaId: widget.camionetaId,
@@ -1422,7 +1639,9 @@ class _BotonTrafico extends StatelessWidget {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
-          color: seleccionado ? color.withValues(alpha: 0.15) : Colors.grey.shade100,
+          color: seleccionado
+              ? color.withValues(alpha: 0.15)
+              : Colors.grey.shade100,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: seleccionado ? color : Colors.grey.shade300,
