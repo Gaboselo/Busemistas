@@ -24,8 +24,7 @@ import 'monedero_vista.dart';
 import 'horarios_vista.dart';
 import 'perfil_vista.dart';
 import 'login_vista.dart';
-import 'dart:convert';
-import 'package:http/http.dart' as http;
+import '../servicios/ruta_servicio.dart';
 
 const Color _kAzul = Color(0xFF0E004A);
 
@@ -47,7 +46,8 @@ class _EstudianteHomeVistaState extends State<EstudianteHomeVista>
 
   // Cache de posicion anterior por camioneta para calculo de heading
   final Map<String, LatLng> _posAnterior = {};
-
+  final RutaServicio _rutaServicio = RutaServicio();
+  final Map<String, List<LatLng>> _cacheRutas = {};
   @override
   void initState() {
     super.initState();
@@ -102,53 +102,13 @@ class _EstudianteHomeVistaState extends State<EstudianteHomeVista>
     return angulo;
   }
 
-// 🧠 Memorias para guardar las rutas y no saturar el servidor
-  final Map<String, List<LatLng>> _cacheRutas = {};
-  final Set<String> _rutasCargando = {};
-
-  // 🌐 Función que busca las calles reales en OSRM
-  Future<void> _obtenerRutaRealOSRM(LatLng origen, LatLng destino, String llaveCache) async {
-    if (_rutasCargando.contains(llaveCache)) return;
-    _rutasCargando.add(llaveCache);
-
-    final url = Uri.parse(
-      'https://router.project-osrm.org/route/v1/driving/'
-      '${origen.longitude},${origen.latitude};${destino.longitude},${destino.latitude}'
-      '?geometries=geojson&overview=full'
-    );
-
-    try {
-      final response = await http.get(url);
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        final List coordinates = data['routes'][0]['geometry']['coordinates'];
-
-        List<LatLng> puntosDeCalle = coordinates.map((coord) {
-          return LatLng(coord[1] as double, coord[0] as double);
-        }).toList();
-
-        // Al estar dentro de la clase del mapa, usamos setState de forma segura
-        if (mounted) {
-          setState(() {
-            _cacheRutas[llaveCache] = puntosDeCalle;
-          });
-        }
-      }
-    } catch (e) {
-      print("Error conectando con el servidor de rutas: $e");
-    } finally {
-      _rutasCargando.remove(llaveCache);
-    }
-  }
-
-// ── Construir polilineas bus -> destino ─────────────────────────
+// --- Construir polilíneas bus -> destino ---
   List<Polyline> _buildPolylines(List<CamionetaModelo> camionetas) {
     return camionetas.where((c) => c.ubicacion != null).map((c) {
       final busPos = LatLng(c.ubicacion!.latitude, c.ubicacion!.longitude);
       final destino = _destinoLatLng(c.destino);
-      
+
       Color lineColor = _kAzul.withValues(alpha: 0.7);
-      // Evitamos el error del analizador verificando el texto del estado
       if (c.estado.toString().contains('emergencia')) {
         lineColor = Colors.red;
       }
@@ -157,13 +117,20 @@ class _EstudianteHomeVistaState extends State<EstudianteHomeVista>
       List<LatLng> puntosParaDibujar;
 
       if (_cacheRutas.containsKey(llaveCache)) {
-        // 🛣️ Si ya tenemos las calles cargadas, las usamos
+        // 1. Usamos la ruta guardada en caché
         puntosParaDibujar = _cacheRutas[llaveCache]!;
       } else {
-        // 🔄 Si no las tenemos, pedimos a la función que las descargue en segundo plano
-        _obtenerRutaRealOSRM(busPos, destino, llaveCache);
+        // 2. Pedimos la ruta real al servicio y dibujamos una línea recta mientras tanto
+        _rutaServicio.obtenerRuta(busPos, destino).then((puntos) {
+          if (mounted) {
+            setState(() {
+              _cacheRutas[llaveCache] = puntos;
+            });
+          }
+        }).catchError((e) {
+          debugPrint("Error al cargar ruta: $e");
+        });
 
-        // Mientras descargan (toma milisegundos), dejamos tu ruta recta temporal
         final mid = LatLng(
           (busPos.latitude + destino.latitude) / 2,
           (busPos.longitude + destino.longitude) / 2,
