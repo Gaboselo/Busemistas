@@ -24,6 +24,8 @@ import 'monedero_vista.dart';
 import 'horarios_vista.dart';
 import 'perfil_vista.dart';
 import 'login_vista.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 
 const Color _kAzul = Color(0xFF0E004A);
 
@@ -100,30 +102,83 @@ class _EstudianteHomeVistaState extends State<EstudianteHomeVista>
     return angulo;
   }
 
+// 🧠 Memorias para guardar las rutas y no saturar el servidor
+  final Map<String, List<LatLng>> _cacheRutas = {};
+  final Set<String> _rutasCargando = {};
+
+  // 🌐 Función que busca las calles reales en OSRM
+  Future<void> _obtenerRutaRealOSRM(LatLng origen, LatLng destino, String llaveCache) async {
+    if (_rutasCargando.contains(llaveCache)) return;
+    _rutasCargando.add(llaveCache);
+
+    final url = Uri.parse(
+      'https://router.project-osrm.org/route/v1/driving/'
+      '${origen.longitude},${origen.latitude};${destino.longitude},${destino.latitude}'
+      '?geometries=geojson&overview=full'
+    );
+
+    try {
+      final response = await http.get(url);
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final List coordinates = data['routes'][0]['geometry']['coordinates'];
+
+        List<LatLng> puntosDeCalle = coordinates.map((coord) {
+          return LatLng(coord[1] as double, coord[0] as double);
+        }).toList();
+
+        // Al estar dentro de la clase del mapa, usamos setState de forma segura
+        if (mounted) {
+          setState(() {
+            _cacheRutas[llaveCache] = puntosDeCalle;
+          });
+        }
+      }
+    } catch (e) {
+      print("Error conectando con el servidor de rutas: $e");
+    } finally {
+      _rutasCargando.remove(llaveCache);
+    }
+  }
+
 // ── Construir polilineas bus -> destino ─────────────────────────
   List<Polyline> _buildPolylines(List<CamionetaModelo> camionetas) {
     return camionetas.where((c) => c.ubicacion != null).map((c) {
       final busPos = LatLng(c.ubicacion!.latitude, c.ubicacion!.longitude);
       final destino = _destinoLatLng(c.destino);
-      final mid = LatLng(
-        (busPos.latitude + destino.latitude) / 2,
-        (busPos.longitude + destino.longitude) / 2,
-      );
+      
       Color lineColor = _kAzul.withValues(alpha: 0.7);
-
-      if (c.estado == 'emergencia') {
+      // Evitamos el error del analizador verificando el texto del estado
+      if (c.estado.toString().contains('emergencia')) {
         lineColor = Colors.red;
       }
 
+      final String llaveCache = "${busPos.latitude.toStringAsFixed(4)},${busPos.longitude.toStringAsFixed(4)}";
+      List<LatLng> puntosParaDibujar;
+
+      if (_cacheRutas.containsKey(llaveCache)) {
+        // 🛣️ Si ya tenemos las calles cargadas, las usamos
+        puntosParaDibujar = _cacheRutas[llaveCache]!;
+      } else {
+        // 🔄 Si no las tenemos, pedimos a la función que las descargue en segundo plano
+        _obtenerRutaRealOSRM(busPos, destino, llaveCache);
+
+        // Mientras descargan (toma milisegundos), dejamos tu ruta recta temporal
+        final mid = LatLng(
+          (busPos.latitude + destino.latitude) / 2,
+          (busPos.longitude + destino.longitude) / 2,
+        );
+        puntosParaDibujar = [busPos, mid, destino];
+      }
+
       return Polyline(
-        points: [busPos, mid, destino],
+        points: puntosParaDibujar,
         strokeWidth: 3.5,
         color: lineColor,
-        // Se elimino isDotted para asegurar compatibilidad con tu version de mapas
       );
     }).toList();
   }
-
+  
   LatLng _destinoLatLng(String destino) {
     return destino.toLowerCase().contains('usm') ||
             destino.toLowerCase().contains('florencia')

@@ -1,4 +1,5 @@
 /// lib/main.dart
+library;
 // Busemistas USM v2 — Color institucional: Color(0xFF0E004A)
 
 import 'package:flutter/material.dart';
