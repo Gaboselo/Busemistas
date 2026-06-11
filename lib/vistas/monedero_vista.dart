@@ -1,4 +1,5 @@
 // lib/vistas/monedero_vista.dart
+<<<<<<< HEAD
 // Busemistas USM v5
 // REGLA: variables/comentarios sin tildes. Textos de UI con ortografia correcta.
 // Cambios v5:
@@ -6,6 +7,15 @@
 //   - Precio del plan es dinamico via Tarifas.plan(rol): $14 estudiante / $7 empleado
 //   - Visitantes no pueden activar el Plan Busemistas (solo pasajes individuales)
 //   - notifyListeners() en AuthProvider tras cada cobro para sincronizar saldo
+=======
+// Busemistas USM v4
+// REGLA: sin tildes, sin enies, sin caracteres especiales.
+// Cambios:
+//   - Precio Plan Usemista fijado en $10.00
+//   - Validacion: si mensualidad_activa ya es true -> SnackBar de aviso
+//   - TabBar colores correctos: activo blanco, inactivo gris claro
+//   - Pie de pagina legal
+>>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -18,9 +28,14 @@ import '../widgets/campo_texto.dart';
 
 const Color _kAzul = Color(0xFF0E004A);
 
+<<<<<<< HEAD
 // Precio oficial del plan ahora es dinamico via Tarifas.plan(rol).
 // Esta constante se mantiene solo como fallback de compatibilidad.
 const double kPrecioPlanFallback = 14.00;
+=======
+// Precio oficial del plan
+const double kPrecioPlanUsemista = 10.00;
+>>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
 
 class MonederoVista extends StatefulWidget {
   const MonederoVista({super.key});
@@ -138,6 +153,7 @@ class _MonederoVistaState extends State<MonederoVista>
     }
   }
 
+<<<<<<< HEAD
   // ── Activar Plan Busemistas con transaccion ACID ────────────────
   // Precio: dinamico segun rol (Tarifas.plan): $14 estudiante / $7 empleado
   // Visitantes: bloqueados - solo pueden comprar pasajes individuales
@@ -146,16 +162,28 @@ class _MonederoVistaState extends State<MonederoVista>
   //   2. Si mensualidad_activa == true en Firestore -> aviso SnackBar
   //   3. Si saldo < precio del plan -> bloquear con mensaje
   //   4. Si ok -> descontar saldo y activar plan 30 dias via transaccion
+=======
+  // ── Activar Plan Usemista con transaccion ACID ───────────────────
+  // Precio: $10.00
+  // Validaciones:
+  //   1. Si mensualidad_activa == true en Firestore -> aviso SnackBar
+  //   2. Si saldo < 10.00 -> bloquear con mensaje
+  //   3. Si ok -> descontar $10 y activar plan 30 dias
+>>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
   Future<void> _activarPlanUsemista(BuildContext context) async {
     setState(() => _procesando = true);
     final auth = context.read<AuthProvider>();
     final cedula = auth.cedulaActual;
+<<<<<<< HEAD
     final rol = auth.rolSeleccionado;
+=======
+>>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
     if (cedula == null) {
       setState(() => _procesando = false);
       return;
     }
 
+<<<<<<< HEAD
     // Validacion 0: visitantes no pueden contratar el plan
     if (!Tarifas.tienePlanDisponible(rol)) {
       setState(() => _procesando = false);
@@ -176,6 +204,8 @@ class _MonederoVistaState extends State<MonederoVista>
     final precioPlan = Tarifas.plan(rol);
     final nombrePlan = Tarifas.nombrePlan(rol);
 
+=======
+>>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
     try {
       // Leer estado actual directo de Firestore (fuente de verdad)
       final snap = await _db.collection('usuarios').doc(cedula).get();
@@ -189,8 +219,13 @@ class _MonederoVistaState extends State<MonederoVista>
       if (planYaActivo) {
         setState(() => _procesando = false);
         if (!context.mounted) return;
+<<<<<<< HEAD
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('Ya posees el $nombrePlan activo en tu cuenta.'),
+=======
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Ya posees el Plan Usemista activo en tu cuenta.'),
+>>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
           backgroundColor: Colors.orange,
           behavior: SnackBarBehavior.floating,
         ));
@@ -198,13 +233,21 @@ class _MonederoVistaState extends State<MonederoVista>
       }
 
       // Validacion 2: saldo insuficiente
+<<<<<<< HEAD
       if (saldoActual < precioPlan) {
+=======
+      if (saldoActual < kPrecioPlanUsemista) {
+>>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
         setState(() => _procesando = false);
         if (!context.mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(
             'Saldo insuficiente (\$${saldoActual.toStringAsFixed(2)}). '
+<<<<<<< HEAD
             'Necesitas \$${precioPlan.toStringAsFixed(2)} para el $nombrePlan.',
+=======
+            'Necesitas \$${kPrecioPlanUsemista.toStringAsFixed(2)}.',
+>>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
           ),
           backgroundColor: Colors.red.shade700,
           behavior: SnackBarBehavior.floating,
@@ -212,18 +255,31 @@ class _MonederoVistaState extends State<MonederoVista>
         return;
       }
 
+<<<<<<< HEAD
       // Mostrar dialogo de confirmacion con precio correcto
+=======
+      // Mostrar dialogo de confirmacion
+>>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
       if (!context.mounted) return;
       final confirmar = await showDialog<bool>(
         context: context,
         builder: (_) => AlertDialog(
           icon: const Icon(Icons.card_membership, color: _kAzul, size: 36),
+<<<<<<< HEAD
           title: Text('Activar $nombrePlan'),
           content: Text(
             'Se descontarán \$${precioPlan.toStringAsFixed(2)} de tu saldo.\n'
             'Tu plan quedará activo por 30 días.\n'
             'Tu asiento será GRATIS en cada viaje.\n\n'
             '¿Confirmar?',
+=======
+          title: const Text('Activar Plan Usemista'),
+          content: Text(
+            'Se descontaran \$${kPrecioPlanUsemista.toStringAsFixed(2)} de tu saldo.\n'
+            'Tu plan quedara activo por 30 dias.\n'
+            'Tu asiento sera GRATIS en cada viaje.\n\n'
+            'Confirmar?',
+>>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
           ),
           actions: [
             TextButton(
@@ -255,7 +311,11 @@ class _MonederoVistaState extends State<MonederoVista>
 
         // Re-verificar en la transaccion (evita condicion de carrera)
         if (txPlanActivo) throw Exception('__PLAN_YA_ACTIVO__');
+<<<<<<< HEAD
         if (txSaldo < precioPlan) {
+=======
+        if (txSaldo < kPrecioPlanUsemista) {
+>>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
           throw Exception('Saldo insuficiente dentro de la transaccion.');
         }
 
@@ -263,19 +323,31 @@ class _MonederoVistaState extends State<MonederoVista>
             Timestamp.fromDate(DateTime.now().add(const Duration(days: 30)));
 
         tx.update(userRef, {
+<<<<<<< HEAD
           'saldo': FieldValue.increment(-precioPlan),
+=======
+          'saldo': FieldValue.increment(-kPrecioPlanUsemista),
+>>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
           'mensualidad_activa': true,
           'vencimiento_mensualidad': vencimiento,
         });
       });
 
       if (!context.mounted) return;
+<<<<<<< HEAD
       // Refrescar saldo en el Provider para que toda la app se actualice
       await auth.refrescarDatosUsuario();
       auth.actualizarMensualidad(true);
 
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('$nombrePlan activado. ¡Vigencia: 30 días!'),
+=======
+      await auth.refrescarDatosUsuario();
+      auth.actualizarMensualidad(true);
+
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Plan Usemista activado! Vigencia: 30 dias.'),
+>>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
         backgroundColor: Colors.green,
         behavior: SnackBarBehavior.floating,
       ));
@@ -283,8 +355,13 @@ class _MonederoVistaState extends State<MonederoVista>
       if (!context.mounted) return;
       final msg = e.toString().replaceAll('Exception: ', '');
       if (msg == '__PLAN_YA_ACTIVO__') {
+<<<<<<< HEAD
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('Ya posees el $nombrePlan activo en tu cuenta.'),
+=======
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Ya posees el Plan Usemista activo en tu cuenta.'),
+>>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
           backgroundColor: Colors.orange,
           behavior: SnackBarBehavior.floating,
         ));
@@ -303,10 +380,13 @@ class _MonederoVistaState extends State<MonederoVista>
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
     final cedula = auth.cedulaActual ?? '';
+<<<<<<< HEAD
     final rol = auth.rolSeleccionado;
     final nombrePlan = Tarifas.nombrePlan(rol);
     final precioPlan = Tarifas.plan(rol);
     final puedeContratarPlan = Tarifas.tienePlanDisponible(rol);
+=======
+>>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
 
     return Scaffold(
       appBar: AppBar(
@@ -315,21 +395,37 @@ class _MonederoVistaState extends State<MonederoVista>
         foregroundColor: Colors.white,
         bottom: TabBar(
           controller: _tabCtrl,
+<<<<<<< HEAD
+=======
+          // activo: blanco puro, inactivo: gris claro visible sobre azul oscuro
+>>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
           labelColor: Colors.white,
           unselectedLabelColor: Colors.white54,
           indicatorColor: Colors.white,
           indicatorWeight: 3,
+<<<<<<< HEAD
           tabs: [
             const Tab(icon: Icon(Icons.add_card_outlined), text: 'Recargar'),
             Tab(
                 icon: const Icon(Icons.card_membership_outlined),
                 text: nombrePlan),
+=======
+          tabs: const [
+            Tab(icon: Icon(Icons.add_card_outlined), text: 'Recargar'),
+            Tab(
+                icon: Icon(Icons.card_membership_outlined),
+                text: 'Plan Usemista'),
+>>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
           ],
         ),
       ),
       body: Column(
         children: [
+<<<<<<< HEAD
           // Saldo en tiempo real via StreamBuilder
+=======
+          // Saldo en tiempo real
+>>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
           StreamBuilder<DocumentSnapshot>(
             stream: _db.collection('usuarios').doc(cedula).snapshots(),
             builder: (context, snap) {
@@ -361,7 +457,10 @@ class _MonederoVistaState extends State<MonederoVista>
                 planActivo: planActivo,
                 vencimiento: vencimiento,
                 nombre: auth.nombreCompleto ?? '',
+<<<<<<< HEAD
                 nombrePlan: nombrePlan,
+=======
+>>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
               );
             },
           ),
@@ -382,6 +481,7 @@ class _MonederoVistaState extends State<MonederoVista>
                   onBancoChanged: (v) => setState(() => _bancoSeleccionado = v),
                   onProcesar: () => _procesarRecarga(context),
                 ),
+<<<<<<< HEAD
                 // Tab 2: Plan Busemistas (rol-dinamico)
                 _TabPlanBusemistas(
                   planActivo: auth.mensualidadActiva,
@@ -390,6 +490,13 @@ class _MonederoVistaState extends State<MonederoVista>
                   precioPlan: precioPlan,
                   nombrePlan: nombrePlan,
                   puedeContratarPlan: puedeContratarPlan,
+=======
+                // Tab 2: Plan Usemista
+                _TabPlanUsemista(
+                  planActivo: auth.mensualidadActiva,
+                  procesando: _procesando,
+                  saldo: auth.saldo,
+>>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
                   onActivar: () => _activarPlanUsemista(context),
                 ),
               ],
@@ -413,15 +520,21 @@ class _TarjetaSaldo extends StatelessWidget {
   final bool planActivo;
   final DateTime? vencimiento;
   final String nombre;
+<<<<<<< HEAD
   // Nombre dinamico del plan para mostrar en el badge
   final String nombrePlan;
+=======
+>>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
 
   const _TarjetaSaldo({
     required this.saldo,
     required this.planActivo,
     required this.vencimiento,
     required this.nombre,
+<<<<<<< HEAD
     required this.nombrePlan,
+=======
+>>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
   });
 
   @override
@@ -482,8 +595,12 @@ class _TarjetaSaldo extends StatelessWidget {
               decoration: BoxDecoration(
                 color: Colors.green.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(10),
+<<<<<<< HEAD
                 border: Border.all(
                     color: Colors.greenAccent.withValues(alpha: 0.4)),
+=======
+                border: Border.all(color: Colors.greenAccent.withValues(alpha: 0.4)),
+>>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
               ),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
                 const Icon(Icons.card_membership,
@@ -491,8 +608,13 @@ class _TarjetaSaldo extends StatelessWidget {
                 const SizedBox(width: 6),
                 Text(
                   vencimiento != null
+<<<<<<< HEAD
                       ? '$nombrePlan hasta ${vencimiento!.day}/${vencimiento!.month}/${vencimiento!.year}'
                       : '$nombrePlan activo',
+=======
+                      ? 'Plan Usemista hasta ${vencimiento!.day}/${vencimiento!.month}/${vencimiento!.year}'
+                      : 'Plan Usemista activo',
+>>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
                   style: const TextStyle(
                       color: Colors.greenAccent,
                       fontSize: 12,
@@ -573,8 +695,12 @@ class _TabRecarga extends StatelessWidget {
                   const _FilaInfo(label: 'Banco:', valor: 'Banesco'),
                   const _FilaInfo(label: 'Telefono:', valor: '0412-0000000'),
                   const _FilaInfo(label: 'RIF:', valor: 'J-305390042'),
+<<<<<<< HEAD
                   const _FilaInfo(
                       label: 'Titular:', valor: 'Busemistas USM C.A.'),
+=======
+                  const _FilaInfo(label: 'Titular:', valor: 'Busemistas USM C.A.'),
+>>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
                 ],
               ),
             ),
@@ -689,6 +815,7 @@ class _FilaInfo extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+<<<<<<< HEAD
 // TAB PLAN BUSEMISTAS (rol-dinamico)
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -711,6 +838,21 @@ class _TabPlanBusemistas extends StatelessWidget {
     required this.precioPlan,
     required this.nombrePlan,
     required this.puedeContratarPlan,
+=======
+// TAB PLAN USEMISTA
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _TabPlanUsemista extends StatelessWidget {
+  final bool planActivo;
+  final bool procesando;
+  final double saldo;
+  final VoidCallback onActivar;
+
+  const _TabPlanUsemista({
+    required this.planActivo,
+    required this.procesando,
+    required this.saldo,
+>>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
     required this.onActivar,
   });
 
@@ -730,6 +872,7 @@ class _TabPlanBusemistas extends StatelessWidget {
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   )
+<<<<<<< HEAD
                 : !puedeContratarPlan
                     ? LinearGradient(
                         colors: [Colors.grey.shade600, Colors.grey.shade400],
@@ -741,6 +884,13 @@ class _TabPlanBusemistas extends StatelessWidget {
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                       ),
+=======
+                : const LinearGradient(
+                    colors: [Color(0xFF0E004A), Color(0xFF3A0CA3)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+>>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
             borderRadius: BorderRadius.circular(20),
             boxShadow: [
               BoxShadow(
@@ -753,14 +903,19 @@ class _TabPlanBusemistas extends StatelessWidget {
             Icon(
               planActivo
                   ? Icons.verified_rounded
+<<<<<<< HEAD
                   : !puedeContratarPlan
                       ? Icons.block_rounded
                       : Icons.card_membership_rounded,
+=======
+                  : Icons.card_membership_rounded,
+>>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
               color: Colors.white,
               size: 48,
             ),
             const SizedBox(height: 12),
             Text(
+<<<<<<< HEAD
               planActivo
                   ? '$nombrePlan ACTIVO'
                   : !puedeContratarPlan
@@ -880,6 +1035,91 @@ class _TabPlanBusemistas extends StatelessWidget {
               ]),
             ),
           ],
+=======
+              planActivo ? 'Plan Usemista ACTIVO' : 'Plan Usemista',
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              '\$${kPrecioPlanUsemista.toStringAsFixed(2)} / mes',
+              style: const TextStyle(color: Colors.white70, fontSize: 16),
+            ),
+          ]),
+        ),
+        const SizedBox(height: 24),
+
+        // Beneficios
+        const _FilaBeneficio(
+            icono: Icons.event_seat_rounded,
+            texto: 'Tu asiento personal GRATIS en cada viaje'),
+        const _FilaBeneficio(
+            icono: Icons.person_add_alt_1_rounded,
+            texto: 'Asientos adicionales para acompaniantes: \$1 c/u'),
+        const _FilaBeneficio(
+            icono: Icons.calendar_month_rounded,
+            texto: 'Vigencia de 30 dias continuos'),
+        const _FilaBeneficio(
+            icono: Icons.savings_rounded,
+            texto: 'Ahorro estimado vs pago individual'),
+        const SizedBox(height: 24),
+
+        if (!planActivo) ...[
+          Text(
+            'Saldo actual: \$${saldo.toStringAsFixed(2)} / Necesitas: \$${kPrecioPlanUsemista.toStringAsFixed(2)}',
+            style: TextStyle(
+                color: saldo >= kPrecioPlanUsemista
+                    ? Colors.green.shade700
+                    : Colors.red.shade600,
+                fontSize: 13,
+                fontWeight: FontWeight.w500),
+          ),
+          const SizedBox(height: 16),
+          FilledButton.icon(
+            onPressed:
+                (procesando || saldo < kPrecioPlanUsemista) ? null : onActivar,
+            icon: procesando
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white))
+                : const Icon(Icons.card_membership_rounded),
+            label: Text(procesando
+                ? 'Activando...'
+                : saldo < kPrecioPlanUsemista
+                    ? 'Saldo insuficiente'
+                    : 'Activar Plan Usemista - \$${kPrecioPlanUsemista.toStringAsFixed(2)}'),
+            style: FilledButton.styleFrom(
+              backgroundColor: _kAzul,
+              minimumSize: const Size.fromHeight(52),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+        ] else ...[
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.green.shade50,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.green.shade300),
+            ),
+            child: const Row(children: [
+              Icon(Icons.check_circle_rounded, color: Colors.green),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Tu plan esta activo. Disfruta de viajes con descuento!',
+                  style: TextStyle(
+                      color: Colors.green, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ]),
+          ),
+>>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
         ],
       ]),
     );

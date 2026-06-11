@@ -1,10 +1,17 @@
 // lib/providers/camioneta_provider.dart
+<<<<<<< HEAD
 // Busemistas USM v5
 // REGLA: sin tildes, sin enies, sin caracteres especiales.
 // Cambios v5:
 //   - auto-inicializa 24 asientos via WriteBatch cuando
 //     el documento tiene menos de 24 nodos en el mapa de asientos.
 //   - sembrarUnidades(): crea unidad_01 y unidad_02 si no existen, para demo.
+=======
+// Busemistas USM v4
+// REGLA: sin tildes, sin enies, sin caracteres especiales.
+// Cambio principal: auto-inicializa 24 asientos via WriteBatch cuando
+// el documento tiene menos de 24 nodos en el mapa de asientos.
+>>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
 
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -125,6 +132,7 @@ class CamionetaProvider extends ChangeNotifier {
     _sub = null;
   }
 
+<<<<<<< HEAD
   // ── Sembrar unidades de demo si no existen ───────────────────────
   // Llama esto una vez al arrancar la app (p.ej. en main.dart o initState).
   // Crea unidad_01 (Hacia La California) y unidad_02 (Hacia la USM)
@@ -195,6 +203,8 @@ class CamionetaProvider extends ChangeNotifier {
     return m;
   }
 
+=======
+>>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
   @override
   void dispose() {
     detenerStream();
