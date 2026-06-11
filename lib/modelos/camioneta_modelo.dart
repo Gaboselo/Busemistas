@@ -6,6 +6,7 @@ enum EstadoCamioneta { disponible, en_camino, emergencia, desconocido }
 
 class CamionetaModelo {
   final String id;
+  final String nombre;
   final String modelo;
   final String color;
   final String patente;
@@ -19,6 +20,7 @@ class CamionetaModelo {
 
   const CamionetaModelo({
     required this.id,
+    required this.nombre,
     required this.modelo,
     required this.color,
     required this.patente,
@@ -46,6 +48,7 @@ class CamionetaModelo {
 
     return CamionetaModelo(
       id: doc.id,
+      nombre: data['nombre'] as String? ?? doc.id,
       modelo: data['modelo'] as String? ?? 'Sin modelo',
       color: data['color'] as String? ?? '',
       patente: data['patente'] as String? ?? '',

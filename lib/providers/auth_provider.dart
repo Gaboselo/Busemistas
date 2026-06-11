@@ -305,7 +305,7 @@ class AuthProvider extends ChangeNotifier {
       // Validar contrasenia
       if (passwordGuardado != contrasenia) {
         _setEstado(AuthEstado.error,
-            error: 'contrasenia incorrecta. Intenta de nuevo.');
+            error: 'Contraseña incorrecta. Intenta de nuevo.');
         return null;
       }
 

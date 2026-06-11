@@ -30,7 +30,7 @@ flutter:
 
   assets:
     - assets/icono_app.png
-
+    - assets/icono_circular2.png
 
 
 flutter_launcher_icons:

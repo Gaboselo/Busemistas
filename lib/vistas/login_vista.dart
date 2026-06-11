@@ -161,20 +161,24 @@ class _LoginVistaState extends State<LoginVista>
                       width: 90,
                       height: 90,
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.15),
+                        color: Colors.white.withOpacity(0.15),
                         shape: BoxShape.circle,
                         border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.4),
-                            width: 2),
+                            color: Colors.white.withOpacity(0.4), width: 2),
                         boxShadow: [
                           BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.3),
+                              color: Colors.black.withOpacity(0.3),
                               blurRadius: 20,
                               offset: const Offset(0, 8))
                         ],
                       ),
-                      child: const Icon(Icons.directions_bus_rounded,
-                          size: 48, color: Colors.white),
+                      child: Image.asset(
+                        'assets/icono_circular2.png',
+                        width: 48,
+                        height: 48,
+                        fit: BoxFit
+                            .contain, // Asegura que la imagen no se deforme
+                      ),
                     ),
                     const SizedBox(height: 18),
                     const Text('Busemistas',
@@ -187,7 +191,7 @@ class _LoginVistaState extends State<LoginVista>
                     const SizedBox(height: 4),
                     Text('Universidad Santa María - Caracas',
                         style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.75),
+                            color: Colors.white.withOpacity(0.75),
                             fontSize: 13)),
                   ]),
                 ),
@@ -540,7 +544,7 @@ class _SimuladorQRVistaState extends State<_SimuladorQRVista>
                       inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                       style: const TextStyle(color: Colors.white),
                       decoration: InputDecoration(
-                        hintText: 'Ingresar C.I. manualmente',
+                        hintText: 'Ingresar C.I. Manualmente',
                         hintStyle: const TextStyle(color: Colors.white38),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10),

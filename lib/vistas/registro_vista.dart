@@ -261,7 +261,7 @@ class _FormPaso1 extends StatelessWidget {
           physics: const NeverScrollableScrollPhysics(),
           mainAxisSpacing: 8,
           crossAxisSpacing: 8,
-          childAspectRatio: 3.0,
+          childAspectRatio: 2.2,
           children: [
             _BotonRol(
               label: 'Estudiante',

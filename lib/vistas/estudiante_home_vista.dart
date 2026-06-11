@@ -1435,7 +1435,7 @@ class _TarjetaCamionetaV4 extends StatelessWidget {
               Icon(Icons.directions_bus_rounded, size: 20, color: _colorEstado),
               const SizedBox(width: 8),
               Expanded(
-                  child: Text(camioneta.id,
+                  child: Text(camioneta.nombre,
                       style: const TextStyle(
                           fontWeight: FontWeight.bold, fontSize: 14))),
               _BadgeEstado(etiqueta: _etiquetaEstado, color: _colorEstado),
@@ -1697,7 +1697,7 @@ class _ModalInfoParada extends StatelessWidget {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Row(children: [
-                                    Text(id,
+                                    Text(data['nombre'] as String? ?? id,
                                         style: const TextStyle(
                                             fontWeight: FontWeight.bold,
                                             fontSize: 13,
