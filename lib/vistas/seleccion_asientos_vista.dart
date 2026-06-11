@@ -1,5 +1,4 @@
 // lib/vistas/seleccion_asientos_vista.dart
-<<<<<<< HEAD
 // Busemistas USM v6
 // REGLA: sin tildes, sin enies, sin caracteres especiales.
 // Cambios v6:
@@ -7,15 +6,6 @@
 //   - Asiento ya reservado propio: clic deshabilitado con aviso
 //   - "Plan Usemista" renombrado a "Plan Busemistas" en toda la UI
 //   - notifyListeners() en AuthProvider tras cobro para sincronizar saldo
-=======
-// Busemistas USM v5
-// REGLA: sin tildes, sin enies, sin caracteres especiales.
-// Cambios v5:
-//   - _calcularCosto usa Tarifas.pasaje(rol) en lugar de $1.00 hardcodeado
-//   - El panel de confirmacion muestra el nombre del plan dinamicamente
-//   - El boleto digital refleja el nombre del plan segun el rol
-//   - Header de la AppBar muestra "Plan Usemista" o "Plan Empleado" segun rol
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -120,8 +110,7 @@ class _SeleccionAsientosVistaState extends State<SeleccionAsientosVista> {
 
     setState(() => _procesando = true);
 
-<<<<<<< HEAD
-// 1. Declaramos una variable local para almacenar el costo real según el rol
+    // 1. Declaramos una variable local para almacenar el costo real según el rol
     double costoRealCobrado = 0.0;
 
     try {
@@ -129,11 +118,6 @@ class _SeleccionAsientosVistaState extends State<SeleccionAsientosVista> {
 
       await _db.runTransaction((tx) async {
         // Leer usuario
-=======
-    try {
-      await _db.runTransaction((tx) async {
-        // 1. Leer usuario
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
         final userRef = _db.collection('usuarios').doc(cedula);
         final userSnap = await tx.get(userRef);
         if (!userSnap.exists) throw Exception('Usuario no encontrado.');
@@ -143,11 +127,7 @@ class _SeleccionAsientosVistaState extends State<SeleccionAsientosVista> {
         final mensualidadActiva =
             userData['mensualidad_activa'] as bool? ?? false;
 
-<<<<<<< HEAD
         // 2. Validar fondos usando tarifa del rol real (leída desde Firestore)
-=======
-        // 2. Validar fondos usando tarifa del rol real (leida desde Firestore)
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
         final rolStr = userData['rol'] as String? ?? '';
         final rolFirestore = RolUsuario.values.firstWhere(
           (r) => r.name == rolStr,
@@ -168,21 +148,13 @@ class _SeleccionAsientosVistaState extends State<SeleccionAsientosVista> {
         final camData = camSnap.data()!;
         final asientos = (camData['asientos'] as Map<String, dynamic>?) ?? {};
 
-<<<<<<< HEAD
         // 4. Verificar que la unidad no arrancó
-=======
-        // 4. Verificar que la unidad no arranco
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
         final estadoUnidad = camData['estado'] as String? ?? 'disponible';
         if (estadoUnidad == 'en_camino') {
           throw Exception('__UNIDAD_EN_CAMINO__');
         }
 
-<<<<<<< HEAD
         // 5. Colisión: todos los asientos seleccionados deben estar libres
-=======
-        // 5. Colision: todos los asientos seleccionados deben estar libres
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
         for (final n in _asientosSeleccionados) {
           final key = '$n';
           final asientoData = asientos[key];
@@ -192,7 +164,6 @@ class _SeleccionAsientosVistaState extends State<SeleccionAsientosVista> {
           }
         }
 
-<<<<<<< HEAD
         // 6. Control de fraude: usuario ya tiene asiento + solo seleccionó 1
         final yaReservado = _usuarioTieneAsiento(asientos, cedula);
         if (yaReservado && cantidad == 1) {
@@ -201,16 +172,6 @@ class _SeleccionAsientosVistaState extends State<SeleccionAsientosVista> {
         }
 
         // 7. Escrituras atómicas
-=======
-        // 6. Control de fraude: usuario ya tiene asiento + solo selecciono 1
-        final yaReservado = _usuarioTieneAsiento(asientos, cedula);
-        if (yaReservado && cantidad == 1) {
-          throw Exception(
-              'Ya tienes un asiento reservado. Puedes agregar mas asientos para acompaniantes.');
-        }
-
-        // 7. Escrituras atomicas
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
         final Map<String, dynamic> updates = {};
         int idx = 0;
         for (final n in _asientosSeleccionados) {
@@ -229,7 +190,6 @@ class _SeleccionAsientosVistaState extends State<SeleccionAsientosVista> {
         if (costoReal > 0) {
           tx.update(userRef, {'saldo': FieldValue.increment(-costoReal)});
         }
-<<<<<<< HEAD
 
         // Guardamos el valor exacto procesado para usarlo fuera de la transacción
         costoRealCobrado = costoReal;
@@ -242,12 +202,6 @@ class _SeleccionAsientosVistaState extends State<SeleccionAsientosVista> {
 
       // Luego sincroniza con Firestore para confirmar el valor real
       await auth.refrescarDatosUsuario();
-=======
-      });
-
-      if (!context.mounted) return;
-      await context.read<AuthProvider>().refrescarDatosUsuario();
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
       await _mostrarBoleto(context);
     } catch (e) {
       if (!context.mounted) return;
@@ -260,11 +214,7 @@ class _SeleccionAsientosVistaState extends State<SeleccionAsientosVista> {
     } finally {
       if (mounted) setState(() => _procesando = false);
     }
-<<<<<<< HEAD
   } // Fin del método de confirmación de reserva
-=======
-  }
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
 
   void _manejarExpulsion(BuildContext context) {
     if (_yaFueExpulsado) return;
@@ -448,7 +398,6 @@ class _SeleccionAsientosVistaState extends State<SeleccionAsientosVista> {
                   estadoAsientoFn: _estadoAsiento,
                   cedulaActual: auth.cedulaActual ?? '',
                   onToggleAsiento: (n) {
-<<<<<<< HEAD
                     // Bloqueo 1: asiento ya reservado por el propio usuario
                     final dataAsiento = asientos['$n'];
                     if (dataAsiento is Map &&
@@ -465,14 +414,14 @@ class _SeleccionAsientosVistaState extends State<SeleccionAsientosVista> {
                       );
                       return;
                     }
-=======
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
                     setState(() {
                       if (_asientosSeleccionados.contains(n)) {
                         _asientosSeleccionados.remove(n);
                       } else {
-<<<<<<< HEAD
                         // Bloqueo 2: max 2 asientos por viaje para estudiantes/empleados
+                        // CORRECTO: todos tienen máximo 2 asientos
+// Lo que cambia para visitante NO es el límite de asientos,
+// sino que no puede contratar el Plan Busemistas.
                         const maxAsientos = 2;
                         if (_asientosSeleccionados.length >= maxAsientos) {
                           ScaffoldMessenger.of(context).showSnackBar(
@@ -486,8 +435,6 @@ class _SeleccionAsientosVistaState extends State<SeleccionAsientosVista> {
                           );
                           return;
                         }
-=======
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
                         _asientosSeleccionados.add(n);
                       }
                     });
@@ -723,13 +670,9 @@ class _AsientoConductor extends StatelessWidget {
         color: _kAzul,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.white, width: 2),
-<<<<<<< HEAD
         boxShadow: [
           BoxShadow(color: _kAzul.withValues(alpha: 0.5), blurRadius: 8)
         ],
-=======
-        boxShadow: [BoxShadow(color: _kAzul.withValues(alpha: 0.5), blurRadius: 8)],
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
       ),
       child: const Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -1147,12 +1090,8 @@ class _DialogoBoleto extends StatelessWidget {
             decoration: BoxDecoration(
               color: const Color(0xFFEEEAF8),
               borderRadius: BorderRadius.circular(12),
-<<<<<<< HEAD
               border:
                   Border.all(color: _kAzul.withValues(alpha: 0.3), width: 1.5),
-=======
-              border: Border.all(color: _kAzul.withValues(alpha: 0.3), width: 1.5),
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
             ),
             child: Column(children: [
               _FilaBoleto(

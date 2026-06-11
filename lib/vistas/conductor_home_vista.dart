@@ -1,5 +1,4 @@
 // lib/vistas/conductor_home_vista.dart
-<<<<<<< HEAD
 // Busemistas USM v6
 // REGLA: variables/keys sin tildes. Textos de UI con ortografia correcta.
 // Cambios v6:
@@ -25,43 +24,12 @@ import "login_vista.dart";
 const Color _kAzul = Color(0xFF0E004A);
 
 // Coordenadas de las dos paradas
-=======
-// Busemistas USM v4
-// REGLA: sin tildes, sin enies, sin caracteres especiales.
-// Cambios:
-//   - Auto-completado por matricula (LLPB45 -> Yutong, rojo)
-//   - Geofencing: detecta llegada a < 50m y finaliza viaje automaticamente
-//   - Boton "Abrir abordaje / Recibir estudiantes" post-llegada
-//   - Retorno inteligente: invierte ruta y limpia asientos
-//   - GPS con coordenadas reales La California -> USM
-
-import 'dart:async';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/material.dart';
-import 'package:geolocator/geolocator.dart';
-import 'package:provider/provider.dart';
-
-import '../providers/auth_provider.dart';
-import 'login_vista.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart' as ll;
-import '../feature_eta.dart' as eta_calc;
-
-const Color _kAzul = Color(0xFF0E004A);
-
-// ── Coordenadas reales del recorrido ────────────────────────────────────────
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
 const LatLngSimple _coordUSM =
     LatLngSimple(10.491360068207142, -66.78017873573735);
 const LatLngSimple _coordLaCalif = LatLngSimple(10.483376, -66.819402);
 
-<<<<<<< HEAD
 // Ruta base de waypoints (fallback si OSRM falla)
 const List<GeoPoint> _rutaBaseHaciaUSM = [
-=======
-// Ruta real La California -> USM via Autopista F. Fajardo
-const List<GeoPoint> _rutaHaciaUSM = [
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
   GeoPoint(10.483376, -66.819402),
   GeoPoint(10.484200, -66.816800),
   GeoPoint(10.485100, -66.813200),
@@ -73,7 +41,6 @@ const List<GeoPoint> _rutaHaciaUSM = [
   GeoPoint(10.491360, -66.780178),
 ];
 
-<<<<<<< HEAD
 const List<String> _etiquetasHaciaUSM = [
   "Estacion La California",
   "Av. Principal La California",
@@ -93,32 +60,6 @@ const Map<String, _PerfilCamioneta> kPerfilesMatricula = {
   "ABCD12": _PerfilCamioneta(modelo: "JAC", color: "azul"),
   "WXYZ99": _PerfilCamioneta(modelo: "Zhongtong", color: "blanco"),
   "MNOP67": _PerfilCamioneta(modelo: "Higer", color: "amarillo"),
-=======
-final List<GeoPoint> _rutaHaciaLaCalif = _rutaHaciaUSM.reversed.toList();
-
-const List<String> _etiquetasHaciaUSM = [
-  'Estacion La California',
-  'Av. Principal La California',
-  'Autopista F. Fajardo',
-  'Distribuidor El Recreo',
-  'Paso desnivel Chuao',
-  'Av. Rio de Janeiro',
-  'Sector La Florencia',
-  'Entrada La Florencia',
-  'USM Sede La Florencia - Destino',
-];
-
-// Umbral de geofencing en metros
-const double kUmbralLlegadaMetros = 50.0;
-
-// ── Mapa de perfil de camionetas por matricula ───────────────────────────────
-// Cuando el conductor selecciona la matricula, modelo y color se autocompletan.
-const Map<String, _PerfilCamioneta> kPerfilesMatricula = {
-  'LLPB45': _PerfilCamioneta(modelo: 'Yutong', color: 'rojo'),
-  'ABCD12': _PerfilCamioneta(modelo: 'JAC', color: 'azul'),
-  'WXYZ99': _PerfilCamioneta(modelo: 'Zhongtong', color: 'blanco'),
-  'MNOP67': _PerfilCamioneta(modelo: 'Higer', color: 'amarillo'),
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
 };
 
 class _PerfilCamioneta {
@@ -127,17 +68,12 @@ class _PerfilCamioneta {
   const _PerfilCamioneta({required this.modelo, required this.color});
 }
 
-<<<<<<< HEAD
-=======
-// Helper simple para coordenadas (sin depender de latlong2 en el conductor)
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
 class LatLngSimple {
   final double lat;
   final double lng;
   const LatLngSimple(this.lat, this.lng);
 }
 
-<<<<<<< HEAD
 Map<String, dynamic> _asientosVacios24() {
   final m = <String, dynamic>{};
   for (int i = 1; i <= 24; i++) {
@@ -146,23 +82,11 @@ Map<String, dynamic> _asientosVacios24() {
       "cedula_pasajero": "",
       "nombre_pasajero": "",
       "estado_pago": "",
-=======
-// Mapa de 24 asientos vacios para reset
-Map<String, dynamic> _asientosVacios24() {
-  final Map<String, dynamic> m = {};
-  for (int i = 1; i <= 24; i++) {
-    m['$i'] = {
-      'ocupado': false,
-      'cedula_pasajero': '',
-      'nombre_pasajero': '',
-      'estado_pago': '',
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
     };
   }
   return m;
 }
 
-<<<<<<< HEAD
 // =============================================================================
 // SERVICIO OSRM INTERNO (copia standalone para el conductor)
 // =============================================================================
@@ -194,13 +118,6 @@ Future<List<ll.LatLng>> _obtenerRutaOSRM(
 
 class ConductorHomeVista extends StatefulWidget {
   const ConductorHomeVista({super.key});
-=======
-// ── VISTA PRINCIPAL ──────────────────────────────────────────────────────────
-
-class ConductorHomeVista extends StatefulWidget {
-  const ConductorHomeVista({super.key});
-
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
   @override
   State<ConductorHomeVista> createState() => _ConductorHomeVistaState();
 }
@@ -208,7 +125,6 @@ class ConductorHomeVista extends StatefulWidget {
 class _ConductorHomeVistaState extends State<ConductorHomeVista> {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
-<<<<<<< HEAD
   // Datos de la unidad (cargados de Firestore automaticamente)
   bool _cargandoUnidad = true;
   String? _matricula;
@@ -250,41 +166,12 @@ class _ConductorHomeVistaState extends State<ConductorHomeVista> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _cargarUnidad());
   }
 
-=======
-  // Configuracion de la unidad
-  bool _configurado = false;
-  String? _matriculaSeleccionada;
-  bool _sentidoHaciaUSM = true;
-
-  bool _rutaActiva = false;
-  bool _simulando = false;
-  int _pasoSimulacion = 0;
-  Timer? _timerSimulacion;
-  bool _emergenciaActiva = false;
-  bool _llegadaDetectada = false; // true cuando el geofence disparo
-
-  String get _camionetaId =>
-      context.read<AuthProvider>().camionetaAsignada ?? 'camioneta_01';
-
-  List<GeoPoint> get _rutaActual =>
-      _sentidoHaciaUSM ? _rutaHaciaUSM : _rutaHaciaLaCalif;
-
-  List<String> get _etiquetasActuales => _sentidoHaciaUSM
-      ? _etiquetasHaciaUSM
-      : _etiquetasHaciaUSM.reversed.toList();
-
-  // Coordenadas del destino segun sentido
-  LatLngSimple get _coordDestino =>
-      _sentidoHaciaUSM ? _coordUSM : _coordLaCalif;
-
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
   @override
   void dispose() {
     _timerSimulacion?.cancel();
     super.dispose();
   }
 
-<<<<<<< HEAD
   // ---------------------------------------------------------------------------
   // PUNTO 3: Cargar unidad automaticamente desde matricula_asignada
   // No hay pantalla de configuracion manual. El conductor llega directo al panel.
@@ -406,69 +293,10 @@ class _ConductorHomeVistaState extends State<ConductorHomeVista> {
       return;
     }
 
-=======
-  // ── Guardar configuracion con auto-completado por matricula ──────
-  Future<void> _guardarConfiguracion() async {
-    if (_matriculaSeleccionada == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Selecciona la matricula de la unidad.'),
-        backgroundColor: Colors.orange,
-      ));
-      return;
-    }
-
-    final perfil = kPerfilesMatricula[_matriculaSeleccionada!];
-    final destino = _sentidoHaciaUSM ? 'Hacia la USM' : 'Hacia La California';
-
-    try {
-      await _db.collection('camionetas').doc(_camionetaId).set({
-        'modelo': perfil?.modelo ?? 'Sin modelo',
-        'color': perfil?.color ?? 'Sin color',
-        'patente': _matriculaSeleccionada,
-        'destino': destino,
-        'estado': 'disponible',
-        'activa': false,
-        'asientos': _asientosVacios24(),
-        'latitud': _rutaActual.first.latitude,
-        'longitud': _rutaActual.first.longitude,
-        'ubicacion': _rutaActual.first,
-        'chofer': context.read<AuthProvider>().nombreCompleto ?? 'Conductor',
-        'trafico_denso': false,
-      }, SetOptions(merge: true));
-
-      setState(() {
-        _configurado = true;
-        _llegadaDetectada = false;
-      });
-    } catch (e) {
-      _mostrarError('Error al guardar configuracion: $e');
-    }
-  }
-
-  // ── Toggle ruta ──────────────────────────────────────────────────
-  Future<void> _toggleRuta(bool valor) async {
-    try {
-      await _db.collection('camionetas').doc(_camionetaId).update({
-        'activa': valor,
-        'estado': valor ? 'en_camino' : 'disponible',
-      });
-      setState(() {
-        _rutaActiva = valor;
-        if (!valor) _detenerSimulacion();
-      });
-    } catch (e) {
-      _mostrarError('Error al cambiar estado: $e');
-    }
-  }
-
-  // ── Simulacion GPS con geofencing ────────────────────────────────
-  void _iniciarSimulacion() {
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
     if (_simulando) {
       _detenerSimulacion();
       return;
     }
-<<<<<<< HEAD
 
     setState(() {
       _descargandoRuta = true;
@@ -516,25 +344,11 @@ class _ConductorHomeVistaState extends State<ConductorHomeVista> {
       }
       final siguiente = _pasoSimulacion + 1;
       if (siguiente >= _rutaOSRM.length) {
-=======
-    setState(() {
-      _simulando = true;
-      _pasoSimulacion = 0;
-      _llegadaDetectada = false;
-    });
-    _escribirUbicacion(0);
-
-    _timerSimulacion =
-        Timer.periodic(const Duration(seconds: 5), (timer) async {
-      final siguiente = _pasoSimulacion + 1;
-      if (siguiente >= _rutaActual.length) {
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
         timer.cancel();
         setState(() => _simulando = false);
         return;
       }
       setState(() => _pasoSimulacion = siguiente);
-<<<<<<< HEAD
       await _escribirUbicacion(_rutaOSRM[siguiente]);
       await _verificarLlegada(_rutaOSRM[siguiente]);
     });
@@ -543,31 +357,12 @@ class _ConductorHomeVistaState extends State<ConductorHomeVista> {
   Future<void> _verificarLlegada(ll.LatLng pos) async {
     if (_llegadaDetectada) return;
     final distancia = Geolocator.distanceBetween(
-=======
-      await _escribirUbicacion(siguiente);
-
-      // Verificar geofencing
-      await _verificarLlegada(siguiente);
-    });
-  }
-
-  // Verifica si la posicion actual esta dentro del umbral del destino
-  Future<void> _verificarLlegada(int paso) async {
-    if (_llegadaDetectada) return;
-    final pos = _rutaActual[paso];
-    final distanciaMetros = Geolocator.distanceBetween(
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
       pos.latitude,
       pos.longitude,
       _coordDestino.lat,
       _coordDestino.lng,
     );
-<<<<<<< HEAD
     if (distancia <= kUmbralLlegadaMetros) {
-=======
-
-    if (distanciaMetros <= kUmbralLlegadaMetros) {
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
       _llegadaDetectada = true;
       _timerSimulacion?.cancel();
       setState(() => _simulando = false);
@@ -575,7 +370,6 @@ class _ConductorHomeVistaState extends State<ConductorHomeVista> {
     }
   }
 
-<<<<<<< HEAD
   Future<void> _llegadaAutomatica() async {
     try {
       await _db.collection("camionetas").doc(_camionetaId).update({
@@ -587,37 +381,17 @@ class _ConductorHomeVistaState extends State<ConductorHomeVista> {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(
             "Llegaste a: ${_sentidoHaciaUSM ? "USM" : "La California"}. ¡Bien hecho!"),
-=======
-  // Dispara cuando el geofence detecta llegada
-  Future<void> _llegadaAutomatica() async {
-    try {
-      await _db.collection('camionetas').doc(_camionetaId).update({
-        'estado': 'terminado',
-        'activa': false,
-      });
-      setState(() => _rutaActiva = false);
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(
-            'Has llegado a tu destino: ${_sentidoHaciaUSM ? "USM" : "La California"}!'),
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
         backgroundColor: Colors.green,
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 5),
       ));
     } catch (e) {
-<<<<<<< HEAD
       _mostrarError("Error al registrar llegada: $e");
-=======
-      _mostrarError('Error al registrar llegada: $e');
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
     }
   }
 
   void _detenerSimulacion() {
     _timerSimulacion?.cancel();
-<<<<<<< HEAD
     setState(() {
       _simulando = false;
       _rutaOSRM = [];
@@ -668,68 +442,20 @@ class _ConductorHomeVistaState extends State<ConductorHomeVista> {
         "longitud": nuevaUbicacion.longitude,
         "ubicacion": nuevaUbicacion,
       });
-=======
-    setState(() => _simulando = false);
-  }
-
-  Future<void> _escribirUbicacion(int paso) async {
-    if (paso >= _rutaActual.length) return;
-    try {
-      await _db.collection('camionetas').doc(_camionetaId).update({
-        'latitud': _rutaActual[paso].latitude,
-        'longitud': _rutaActual[paso].longitude,
-        'ubicacion': _rutaActual[paso],
-        'ultimo_update': FieldValue.serverTimestamp(),
-      });
-    } catch (e) {
-      debugPrint('GPS write error: $e');
-    }
-  }
-
-  // ── Abrir abordaje / Retorno inteligente ─────────────────────────
-  Future<void> _abrirAbordajeRegreso() async {
-    // Invertir sentido y limpiar asientos
-    final nuevoSentido = !_sentidoHaciaUSM;
-    final nuevoDestino = nuevoSentido ? 'Hacia la USM' : 'Hacia La California';
-
-    try {
-      await _db.collection('camionetas').doc(_camionetaId).update({
-        'destino': nuevoDestino,
-        'estado': 'disponible',
-        'activa': false,
-        'asientos': _asientosVacios24(),
-        'latitud':
-            (nuevoSentido ? _rutaHaciaUSM : _rutaHaciaLaCalif).first.latitude,
-        'longitud':
-            (nuevoSentido ? _rutaHaciaUSM : _rutaHaciaLaCalif).first.longitude,
-        'ubicacion': (nuevoSentido ? _rutaHaciaUSM : _rutaHaciaLaCalif).first,
-      });
-
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
       setState(() {
         _sentidoHaciaUSM = nuevoSentido;
         _pasoSimulacion = 0;
         _llegadaDetectada = false;
         _rutaActiva = false;
-<<<<<<< HEAD
         _rutaOSRM = [];
       });
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text("Abordaje abierto. Nuevo destino: $nuevoDestino"),
-=======
-      });
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(
-            'Abordaje abierto. Nuevo destino: $nuevoDestino. 24 asientos disponibles.'),
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
         backgroundColor: Colors.green,
         behavior: SnackBarBehavior.floating,
       ));
     } catch (e) {
-<<<<<<< HEAD
       _mostrarError("Error al abrir abordaje: $e");
     }
   }
@@ -784,13 +510,6 @@ class _ConductorHomeVistaState extends State<ConductorHomeVista> {
     }
   }
 
-=======
-      _mostrarError('Error al abrir abordaje: $e');
-    }
-  }
-
-  // ── Emergencia ───────────────────────────────────────────────────
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
   void _mostrarEmergenciaSheet() {
     showModalBottomSheet(
       context: context,
@@ -813,7 +532,6 @@ class _ConductorHomeVistaState extends State<ConductorHomeVista> {
 
   Future<void> _ejecutarEmergencia(String tipo) async {
     try {
-<<<<<<< HEAD
       await _db.collection("camionetas").doc(_camionetaId).update({
         "estado":
             tipo == "Colision/Choque vial" ? "fuera_de_servicio" : "emergencia",
@@ -824,80 +542,16 @@ class _ConductorHomeVistaState extends State<ConductorHomeVista> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text("Emergencia: $tipo"),
-=======
-      await _db.collection('camionetas').doc(_camionetaId).update({
-        'estado':
-            tipo == 'Colision/Choque vial' ? 'fuera_de_servicio' : 'emergencia',
-        'tipo_emergencia': tipo,
-        'ts_emergencia': FieldValue.serverTimestamp(),
-      });
-      setState(() => _emergenciaActiva = true);
-
-      if (tipo == 'Colision/Choque vial') {
-        await _transferirRespaldo();
-      }
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Emergencia declarada: $tipo'),
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
         backgroundColor: Colors.red.shade700,
         behavior: SnackBarBehavior.floating,
       ));
     } catch (e) {
-<<<<<<< HEAD
       _mostrarError("Error emergencia: $e");
-=======
-      _mostrarError('Error al activar emergencia: $e');
-    }
-  }
-
-  Future<void> _transferirRespaldo() async {
-    try {
-      final snap = await _db.collection('camionetas').doc(_camionetaId).get();
-      if (!snap.exists) return;
-      final data = snap.data()!;
-      final asientos = data['asientos'] as Map<String, dynamic>? ?? {};
-      final destino = data['destino'] as String? ?? 'Hacia la USM';
-
-      final batch = _db.batch();
-      final backupRef = _db.collection('camionetas').doc('unidad_backup');
-      batch.set(
-        backupRef,
-        {
-          'modelo': 'Unidad de Respaldo',
-          'color': 'blanco',
-          'patente': 'RESPALDO',
-          'chofer': 'Sistema - Asignacion Automatica',
-          'estado': 'en_camino',
-          'destino': destino,
-          'latitud': _rutaActual.first.latitude,
-          'longitud': _rutaActual.first.longitude,
-          'ubicacion': _rutaActual.first,
-          'asientos': asientos,
-          'es_respaldo': true,
-          'unidad_reemplazada': _camionetaId,
-          'ts_activacion': FieldValue.serverTimestamp(),
-        },
-        SetOptions(merge: true),
-      );
-      await batch.commit();
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Unidad de respaldo activada. Recogiendo pasajeros.'),
-        backgroundColor: Colors.blue,
-        behavior: SnackBarBehavior.floating,
-      ));
-    } catch (e) {
-      debugPrint('Error respaldo: $e');
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
     }
   }
 
   Future<void> _resolverEmergencia() async {
     try {
-<<<<<<< HEAD
       await _db.collection("camionetas").doc(_camionetaId).update({
         "estado": "disponible",
         "tipo_emergencia": FieldValue.delete(),
@@ -911,72 +565,6 @@ class _ConductorHomeVistaState extends State<ConductorHomeVista> {
       ));
     } catch (e) {
       _mostrarError("Error: $e");
-=======
-      final batch = _db.batch();
-      final camRef = _db.collection('camionetas').doc(_camionetaId);
-      batch.update(camRef, {
-        'estado': 'disponible',
-        'tipo_emergencia': FieldValue.delete(),
-        'ts_emergencia': FieldValue.delete(),
-      });
-      await batch.commit();
-      setState(() => _emergenciaActiva = false);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Emergencia resuelta. Unidad disponible.'),
-        backgroundColor: Colors.green,
-      ));
-    } catch (e) {
-      _mostrarError('Error al resolver emergencia: $e');
-    }
-  }
-
-  // ── Fin manual del viaje ─────────────────────────────────────────
-  Future<void> _finalizarViaje() async {
-    final confirmar = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Finalizar Viaje?'),
-        content: const Text(
-            'Libera todos los asientos y pone la unidad como disponible.'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancelar')),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: _kAzul),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Finalizar'),
-          ),
-        ],
-      ),
-    );
-    if (confirmar != true) return;
-
-    try {
-      final batch = _db.batch();
-      final camRef = _db.collection('camionetas').doc(_camionetaId);
-      batch.update(camRef, {
-        'asientos': _asientosVacios24(),
-        'estado': 'terminado',
-        'activa': false,
-      });
-      await batch.commit();
-      setState(() {
-        _rutaActiva = false;
-        _simulando = false;
-        _llegadaDetectada = true;
-      });
-      _timerSimulacion?.cancel();
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Viaje finalizado. Asientos liberados.'),
-        backgroundColor: Colors.green,
-        behavior: SnackBarBehavior.floating,
-      ));
-    } catch (e) {
-      _mostrarError('Error al finalizar viaje: $e');
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
     }
   }
 
@@ -995,7 +583,6 @@ class _ConductorHomeVistaState extends State<ConductorHomeVista> {
     );
   }
 
-<<<<<<< HEAD
   // ---------------------------------------------------------------------------
   // BUILD
   // ---------------------------------------------------------------------------
@@ -1044,27 +631,6 @@ class _ConductorHomeVistaState extends State<ConductorHomeVista> {
     } else {
       etiquetaPasoActual = "Destino alcanzado";
     }
-=======
-  @override
-  Widget build(BuildContext context) {
-    final auth = context.watch<AuthProvider>();
-    final primerNombre = (auth.nombreCompleto ?? 'Conductor').split(' ').first;
-
-    if (!_configurado) {
-      return _PantallaConfiguracion(
-        primerNombre: primerNombre,
-        matriculaSeleccionada: _matriculaSeleccionada,
-        sentidoHaciaUSM: _sentidoHaciaUSM,
-        onMatriculaChanged: (v) => setState(() => _matriculaSeleccionada = v),
-        onSentidoChanged: (v) => setState(() => _sentidoHaciaUSM = v),
-        onConfirmar: _guardarConfiguracion,
-        onCerrarSesion: _cerrarSesion,
-        perfilesMatricula: kPerfilesMatricula,
-      );
-    }
-
-    final perfil = kPerfilesMatricula[_matriculaSeleccionada ?? ''];
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
@@ -1080,7 +646,6 @@ class _ConductorHomeVistaState extends State<ConductorHomeVista> {
             child: ListView(
               padding: const EdgeInsets.all(14),
               children: [
-<<<<<<< HEAD
                 // Info de la unidad
                 _TarjetaUnidadConfigurada(
                   modelo: _modelo ?? "",
@@ -1110,70 +675,20 @@ class _ConductorHomeVistaState extends State<ConductorHomeVista> {
                 ),
                 const SizedBox(height: 12),
 
-=======
-                // Info de la unidad configurada
-                _TarjetaUnidadConfigurada(
-                  modelo: perfil?.modelo ?? '',
-                  colorUnidad: perfil?.color ?? '',
-                  matricula: _matriculaSeleccionada ?? '',
-                  destino:
-                      _sentidoHaciaUSM ? 'Hacia la USM' : 'Hacia La California',
-                ),
-                const SizedBox(height: 12),
-
-                // Panel GPS
-                _TarjetaGPS(
-                  rutaActiva: _rutaActiva,
-                  simulando: _simulando,
-                  pasoSimulacion: _pasoSimulacion,
-                  totalPasos: _rutaActual.length,
-                  etiquetaActual: _pasoSimulacion < _etiquetasActuales.length
-                      ? _etiquetasActuales[_pasoSimulacion]
-                      : 'Destino alcanzado',
-                  llegadaDetectada: _llegadaDetectada,
-                  onToggleRuta: _toggleRuta,
-                  onToggleSimulacion: _iniciarSimulacion,
-                  posicionActual: ll.LatLng(
-                    _rutaActual[_pasoSimulacion < _rutaActual.length
-                            ? _pasoSimulacion
-                            : _rutaActual.length - 1]
-                        .latitude,
-                    _rutaActual[_pasoSimulacion < _rutaActual.length
-                            ? _pasoSimulacion
-                            : _rutaActual.length - 1]
-                        .longitude,
-                  ),
-                  ruta: _rutaActual
-                      .map((p) => ll.LatLng(p.latitude, p.longitude))
-                      .toList(),
-                  coordDestino: ll.LatLng(_coordDestino.lat, _coordDestino.lng),
-                ),
-
-                const SizedBox(height: 12),
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
                 _TarjetaETA(
                   camionetaId: _camionetaId,
                   db: _db,
                   sentidoHaciaUSM: _sentidoHaciaUSM,
                 ),
-<<<<<<< HEAD
                 const SizedBox(height: 12),
 
-=======
-
-                // Boton de abordaje/retorno si llego
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
                 if (_llegadaDetectada)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 12),
                     child: FilledButton.icon(
                       onPressed: _abrirAbordajeRegreso,
                       icon: const Icon(Icons.door_sliding_rounded),
-<<<<<<< HEAD
                       label: const Text("Abrir abordaje / Recibir estudiantes"),
-=======
-                      label: const Text('Abrir abordaje / Recibir estudiantes'),
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
                       style: FilledButton.styleFrom(
                         backgroundColor: Colors.teal.shade700,
                         minimumSize: const Size.fromHeight(52),
@@ -1183,26 +698,14 @@ class _ConductorHomeVistaState extends State<ConductorHomeVista> {
                     ),
                   ),
 
-<<<<<<< HEAD
                 _TarjetaPanelControl(camionetaId: _camionetaId, db: _db),
                 const SizedBox(height: 12),
 
-=======
-                // Lista de pasajeros
-                _TarjetaPanelControl(camionetaId: _camionetaId, db: _db),
-                const SizedBox(height: 12),
-
-                // Boton finalizar viaje (solo si no llego aun)
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
                 if (!_llegadaDetectada)
                   FilledButton.icon(
                     onPressed: _rutaActiva ? _finalizarViaje : null,
                     icon: const Icon(Icons.flag_rounded),
-<<<<<<< HEAD
                     label: const Text("Finalizar Viaje"),
-=======
-                    label: const Text('Finalizar Viaje'),
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
                     style: FilledButton.styleFrom(
                       backgroundColor: Colors.green.shade700,
                       minimumSize: const Size.fromHeight(52),
@@ -1219,233 +722,9 @@ class _ConductorHomeVistaState extends State<ConductorHomeVista> {
   }
 }
 
-<<<<<<< HEAD
 // =============================================================================
 // WIDGETS DEL CONDUCTOR (Header, GPS, Panel Control, ETA, Emergencia, etc.)
 // =============================================================================
-=======
-// ─────────────────────────────────────────────────────────────────────────────
-// PANTALLA DE CONFIGURACION
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _PantallaConfiguracion extends StatelessWidget {
-  final String primerNombre;
-  final String? matriculaSeleccionada;
-  final bool sentidoHaciaUSM;
-  final void Function(String?) onMatriculaChanged;
-  final void Function(bool) onSentidoChanged;
-  final VoidCallback onConfirmar;
-  final VoidCallback onCerrarSesion;
-  final Map<String, _PerfilCamioneta> perfilesMatricula;
-
-  const _PantallaConfiguracion({
-    required this.primerNombre,
-    required this.matriculaSeleccionada,
-    required this.sentidoHaciaUSM,
-    required this.onMatriculaChanged,
-    required this.onSentidoChanged,
-    required this.onConfirmar,
-    required this.onCerrarSesion,
-    required this.perfilesMatricula,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final perfilActual = perfilesMatricula[matriculaSeleccionada ?? ''];
-
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        title: const Text('Configurar Unidad'),
-        backgroundColor: _kAzul,
-        foregroundColor: Colors.white,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout_rounded),
-            onPressed: onCerrarSesion,
-          ),
-        ],
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Bienvenida
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF0E004A), Color(0xFF3A0CA3)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Row(children: [
-                const Icon(Icons.drive_eta_rounded,
-                    color: Colors.white, size: 36),
-                const SizedBox(width: 14),
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('Hola, $primerNombre',
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold)),
-                  const Text('Configura tu unidad antes de iniciar',
-                      style: TextStyle(color: Colors.white70, fontSize: 12)),
-                ]),
-              ]),
-            ),
-            const SizedBox(height: 24),
-
-            // Selector de matricula
-            const Text('Matricula / Placa',
-                style: TextStyle(
-                    fontWeight: FontWeight.w600, fontSize: 13, color: _kAzul)),
-            const SizedBox(height: 8),
-            DropdownButtonFormField<String>(
-              initialValue: matriculaSeleccionada,
-              decoration: InputDecoration(
-                hintText: 'Selecciona la matricula',
-                border:
-                    OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              ),
-              items: perfilesMatricula.keys
-                  .map((m) => DropdownMenuItem(value: m, child: Text(m)))
-                  .toList(),
-              onChanged: onMatriculaChanged,
-            ),
-            const SizedBox(height: 12),
-
-            // Auto-completado visual
-            if (perfilActual != null)
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.green.shade50,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.green.shade300),
-                ),
-                child: Row(children: [
-                  Icon(Icons.auto_awesome,
-                      color: Colors.green.shade700, size: 18),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Modelo: ${perfilActual.modelo}  |  Color: ${perfilActual.color}',
-                    style: TextStyle(
-                        color: Colors.green.shade800,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13),
-                  ),
-                ]),
-              ),
-            const SizedBox(height: 16),
-
-            // Selector de sentido
-            const Text('Sentido de la Ruta',
-                style: TextStyle(
-                    fontWeight: FontWeight.w600, fontSize: 13, color: _kAzul)),
-            const SizedBox(height: 8),
-            Row(children: [
-              Expanded(
-                child: _BotonSentido(
-                  label: 'Hacia la USM',
-                  sublabel: 'La California -> USM',
-                  icono: Icons.school_rounded,
-                  seleccionado: sentidoHaciaUSM,
-                  onTap: () => onSentidoChanged(true),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _BotonSentido(
-                  label: 'Regreso',
-                  sublabel: 'USM -> La California',
-                  icono: Icons.directions_bus_rounded,
-                  seleccionado: !sentidoHaciaUSM,
-                  onTap: () => onSentidoChanged(false),
-                ),
-              ),
-            ]),
-            const SizedBox(height: 28),
-
-            FilledButton.icon(
-              onPressed: onConfirmar,
-              icon: const Icon(Icons.play_arrow_rounded),
-              label: const Text('Iniciar Servicio'),
-              style: FilledButton.styleFrom(
-                backgroundColor: Colors.green.shade700,
-                minimumSize: const Size.fromHeight(54),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14)),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _BotonSentido extends StatelessWidget {
-  final String label;
-  final String sublabel;
-  final IconData icono;
-  final bool seleccionado;
-  final VoidCallback onTap;
-
-  const _BotonSentido({
-    required this.label,
-    required this.sublabel,
-    required this.icono,
-    required this.seleccionado,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: seleccionado ? _kAzul : Colors.grey.shade100,
-          borderRadius: BorderRadius.circular(12),
-          border:
-              Border.all(color: seleccionado ? _kAzul : Colors.grey.shade300),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icono,
-                color: seleccionado ? Colors.white : Colors.grey.shade600,
-                size: 22),
-            const SizedBox(height: 6),
-            Text(label,
-                style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 12,
-                    color: seleccionado ? Colors.white : Colors.grey.shade800)),
-            Text(sublabel,
-                style: TextStyle(
-                    fontSize: 10,
-                    color:
-                        seleccionado ? Colors.white70 : Colors.grey.shade600)),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// HEADER CONDUCTOR
-// ─────────────────────────────────────────────────────────────────────────────
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
 
 class _HeaderConductor extends StatelessWidget {
   final String primerNombre;
@@ -1466,25 +745,14 @@ class _HeaderConductor extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
       color: _kAzul,
       child: Row(children: [
-<<<<<<< HEAD
         Expanded(
           child:
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text("¡Hola, $primerNombre!",
-=======
-        const Icon(Icons.directions_bus_rounded,
-            color: Colors.white70, size: 24),
-        const SizedBox(width: 10),
-        Expanded(
-          child:
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Hola, $primerNombre!',
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
                 style: const TextStyle(
                     color: Colors.white,
                     fontSize: 20,
                     fontWeight: FontWeight.bold)),
-<<<<<<< HEAD
             const Text("Panel del Conductor",
                 style: TextStyle(color: Colors.white70, fontSize: 12)),
           ]),
@@ -1518,45 +786,6 @@ class _HeaderConductor extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 8),
-=======
-            const Text('Panel del Conductor',
-                style: TextStyle(color: Colors.white60, fontSize: 11)),
-          ]),
-        ),
-        Opacity(
-          opacity: 0.85,
-          child: GestureDetector(
-            onTap: onEmergencia,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 300),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-              decoration: BoxDecoration(
-                color: emergenciaActiva
-                    ? Colors.red
-                    : Colors.red.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.red.shade300),
-              ),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.warning_rounded,
-                    color:
-                        emergenciaActiva ? Colors.white : Colors.red.shade200,
-                    size: 18),
-                const SizedBox(width: 4),
-                Text(
-                  emergenciaActiva ? 'EMERGENCIA' : 'SOS',
-                  style: TextStyle(
-                      color:
-                          emergenciaActiva ? Colors.white : Colors.red.shade200,
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold),
-                ),
-              ]),
-            ),
-          ),
-        ),
-        const SizedBox(width: 6),
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
         IconButton(
           icon: const Icon(Icons.logout_rounded, color: Colors.white70),
           onPressed: onLogout,
@@ -1566,13 +795,6 @@ class _HeaderConductor extends StatelessWidget {
   }
 }
 
-<<<<<<< HEAD
-=======
-// ─────────────────────────────────────────────────────────────────────────────
-// TARJETA UNIDAD CONFIGURADA
-// ─────────────────────────────────────────────────────────────────────────────
-
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
 class _TarjetaUnidadConfigurada extends StatelessWidget {
   final String modelo;
   final String colorUnidad;
@@ -1589,7 +811,6 @@ class _TarjetaUnidadConfigurada extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-<<<<<<< HEAD
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       elevation: 2,
       child: Padding(
@@ -1640,37 +861,6 @@ class _TarjetaUnidadConfigurada extends StatelessWidget {
                 ]),
               ),
             ]),
-=======
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      elevation: 2,
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Row(children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: _kAzul.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: const Icon(Icons.directions_bus_rounded,
-                color: _kAzul, size: 28),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('$modelo - $matricula',
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 15,
-                        color: _kAzul)),
-                Text('Color: $colorUnidad  |  $destino',
-                    style:
-                        const TextStyle(fontSize: 12, color: Colors.black54)),
-              ],
-            ),
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
           ),
         ]),
       ),
@@ -1678,29 +868,15 @@ class _TarjetaUnidadConfigurada extends StatelessWidget {
   }
 }
 
-<<<<<<< HEAD
 class _TarjetaGPS extends StatelessWidget {
   final bool rutaActiva;
   final bool simulando;
   final bool descargandoRuta;
-=======
-// ─────────────────────────────────────────────────────────────────────────────
-// TARJETA GPS
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _TarjetaGPS extends StatefulWidget {
-  final bool rutaActiva;
-  final bool simulando;
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
   final int pasoSimulacion;
   final int totalPasos;
   final String etiquetaActual;
   final bool llegadaDetectada;
-<<<<<<< HEAD
   final Future<void> Function(bool) onToggleRuta;
-=======
-  final void Function(bool) onToggleRuta;
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
   final VoidCallback onToggleSimulacion;
   final ll.LatLng posicionActual;
   final List<ll.LatLng> ruta;
@@ -1709,10 +885,7 @@ class _TarjetaGPS extends StatefulWidget {
   const _TarjetaGPS({
     required this.rutaActiva,
     required this.simulando,
-<<<<<<< HEAD
     required this.descargandoRuta,
-=======
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
     required this.pasoSimulacion,
     required this.totalPasos,
     required this.etiquetaActual,
@@ -1725,33 +898,12 @@ class _TarjetaGPS extends StatefulWidget {
   });
 
   @override
-<<<<<<< HEAD
-=======
-  State<_TarjetaGPS> createState() => _TarjetaGPSState();
-}
-
-class _TarjetaGPSState extends State<_TarjetaGPS> {
-  final MapController _mapController = MapController();
-
-  @override
-  void didUpdateWidget(covariant _TarjetaGPS oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.posicionActual != widget.posicionActual) {
-      try {
-        _mapController.move(widget.posicionActual, _mapController.camera.zoom);
-      } catch (_) {}
-    }
-  }
-
-  @override
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
   Widget build(BuildContext context) {
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       elevation: 4,
       child: Padding(
         padding: const EdgeInsets.all(20),
-<<<<<<< HEAD
         child:
             Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           const Row(children: [
@@ -1785,49 +937,10 @@ class _TarjetaGPSState extends State<_TarjetaGPS> {
                       polylines: [
                         Polyline(
                           points: ruta,
-=======
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Titulo
-            const Row(children: [
-              Icon(Icons.gps_fixed_rounded, color: _kAzul, size: 20),
-              SizedBox(width: 8),
-              Text('Control de Ruta',
-                  style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                      color: _kAzul)),
-            ]),
-            const SizedBox(height: 16),
-
-            // ── MAPA ──
-            ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: SizedBox(
-                height: 200,
-                child: FlutterMap(
-                  mapController: _mapController,
-                  options: MapOptions(
-                    initialCenter: widget.posicionActual,
-                    initialZoom: 14.0,
-                  ),
-                  children: [
-                    TileLayer(
-                      urlTemplate:
-                          'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                      userAgentPackageName: 'com.example.busemistas',
-                    ),
-                    PolylineLayer(
-                      polylines: [
-                        Polyline(
-                          points: widget.ruta,
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
                           color: _kAzul.withValues(alpha: 0.6),
                           strokeWidth: 4,
                         ),
                       ],
-<<<<<<< HEAD
                     ), // <-- Asegúrate de que cierre con su respectiva coma/paréntesis
                   MarkerLayer(
                     markers: [
@@ -1944,190 +1057,11 @@ class _TarjetaGPSState extends State<_TarjetaGPS> {
                   ),
           ],
         ]),
-=======
-                    ),
-                    MarkerLayer(
-                      markers: [
-                        Marker(
-                          point: widget.posicionActual,
-                          width: 50,
-                          height: 50,
-                          child: const Icon(
-                            Icons.directions_bus_rounded,
-                            color: _kAzul,
-                            size: 36,
-                          ),
-                        ),
-                        Marker(
-                          point: widget.coordDestino,
-                          width: 40,
-                          height: 40,
-                          child: Icon(
-                            Icons.flag_rounded,
-                            color: Colors.green.shade700,
-                            size: 30,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-
-            // Destino alcanzado
-            if (widget.llegadaDetectada)
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: Colors.green.shade50,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.green.shade300),
-                ),
-                child: const Row(children: [
-                  Icon(Icons.flag_rounded, color: Colors.green, size: 28),
-                  SizedBox(width: 10),
-                  Expanded(
-                    child: Text('Destino alcanzado.\nViaje completado.',
-                        style: TextStyle(
-                            color: Colors.green,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14)),
-                  ),
-                ]),
-              )
-            else ...[
-              // BOTON GIGANTE
-              GestureDetector(
-                onTap: () => widget.onToggleRuta(!widget.rutaActiva),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 300),
-                  height: 130,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: widget.rutaActiva
-                          ? [Colors.red.shade600, Colors.red.shade800]
-                          : [Colors.green.shade500, Colors.green.shade700],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: widget.rutaActiva
-                            ? Colors.red.withValues(alpha: 0.4)
-                            : Colors.green.withValues(alpha: 0.4),
-                        blurRadius: 16,
-                        offset: const Offset(0, 6),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        widget.rutaActiva
-                            ? Icons.stop_circle_rounded
-                            : Icons.play_circle_rounded,
-                        color: Colors.white,
-                        size: 52,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        widget.rutaActiva ? 'TERMINAR RUTA' : 'INICIAR RUTA',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 1.5,
-                        ),
-                      ),
-                      Text(
-                        widget.rutaActiva
-                            ? 'Toca para finalizar el servicio'
-                            : 'Toca para comenzar el servicio',
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.8),
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              // Info de ruta activa
-              if (widget.rutaActiva) ...[
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.shade50,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.blue.shade200),
-                  ),
-                  child: Column(children: [
-                    Row(children: [
-                      const Icon(Icons.location_on_rounded,
-                          color: _kAzul, size: 16),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          'Ubicacion: ${widget.etiquetaActual}',
-                          style: const TextStyle(
-                              fontSize: 12,
-                              color: _kAzul,
-                              fontWeight: FontWeight.w500),
-                        ),
-                      ),
-                    ]),
-                    const SizedBox(height: 8),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(6),
-                      child: LinearProgressIndicator(
-                        value: widget.totalPasos > 0
-                            ? widget.pasoSimulacion / (widget.totalPasos - 1)
-                            : 0,
-                        backgroundColor: Colors.grey.shade200,
-                        color: _kAzul,
-                        minHeight: 8,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    OutlinedButton.icon(
-                      onPressed: widget.onToggleSimulacion,
-                      icon: Icon(widget.simulando
-                          ? Icons.stop_circle_outlined
-                          : Icons.play_circle_outlined),
-                      label: Text(widget.simulando
-                          ? 'Detener simulacion GPS'
-                          : 'Iniciar simulacion GPS'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: _kAzul,
-                        side: const BorderSide(color: _kAzul),
-                        minimumSize: const Size.fromHeight(40),
-                      ),
-                    ),
-                  ]),
-                ),
-              ],
-            ],
-          ],
-        ),
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
       ),
     );
   }
 }
 
-<<<<<<< HEAD
-=======
-// ─────────────────────────────────────────────────────────────────────────────
-// TARJETA ETA (Tiempo estimado de llegada)
-// ─────────────────────────────────────────────────────────────────────────────
-
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
 class _TarjetaETA extends StatelessWidget {
   final String camionetaId;
   final FirebaseFirestore db;
@@ -2141,15 +1075,9 @@ class _TarjetaETA extends StatelessWidget {
 
   double _factorTrafico(String nivel) {
     switch (nivel) {
-<<<<<<< HEAD
       case "medio":
         return 1.3;
       case "alto":
-=======
-      case 'medio':
-        return 1.3;
-      case 'alto':
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
         return 1.7;
       default:
         return 1.0;
@@ -2159,25 +1087,12 @@ class _TarjetaETA extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<DocumentSnapshot>(
-<<<<<<< HEAD
       stream: db.collection("camionetas").doc(camionetaId).snapshots(),
       builder: (context, snap) {
         if (!snap.hasData || !snap.data!.exists) return const SizedBox();
         final data = snap.data!.data() as Map<String, dynamic>;
         final ubicacion = data["ubicacion"] as GeoPoint?;
         final nivelTrafico = data["nivel_trafico"] as String? ?? "bajo";
-=======
-      stream: db.collection('camionetas').doc(camionetaId).snapshots(),
-      builder: (context, snap) {
-        if (!snap.hasData || !snap.data!.exists) {
-          return const SizedBox();
-        }
-
-        final data = snap.data!.data() as Map<String, dynamic>;
-        final ubicacion = data['ubicacion'] as GeoPoint?;
-        final nivelTrafico = data['nivel_trafico'] as String? ?? 'bajo';
-
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
         if (ubicacion == null) return const SizedBox();
 
         final eta = eta_calc.calcularETA(
@@ -2187,7 +1102,6 @@ class _TarjetaETA extends StatelessWidget {
         );
 
         final destinoData = sentidoHaciaUSM
-<<<<<<< HEAD
             ? eta["parada_universidad"]
             : eta["parada_california"];
         final nombreDestino = sentidoHaciaUSM ? "USM" : "La California";
@@ -2195,12 +1109,6 @@ class _TarjetaETA extends StatelessWidget {
         if (destinoData == null) return const SizedBox();
         final minutos = destinoData["minutos"] as double? ?? 0;
         final km = destinoData["km"] as double? ?? 0;
-=======
-            ? eta['parada_universidad']
-            : eta['parada_california'];
-        final nombreDestino =
-            sentidoHaciaUSM ? 'USM (La Florencia)' : 'La California';
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
 
         return Card(
           shape:
@@ -2215,17 +1123,12 @@ class _TarjetaETA extends StatelessWidget {
                   color: _kAzul.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
-<<<<<<< HEAD
                 child:
                     const Icon(Icons.timer_outlined, color: _kAzul, size: 24),
-=======
-                child: const Icon(Icons.timer_rounded, color: _kAzul, size: 28),
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
               ),
               const SizedBox(width: 14),
               Expanded(
                 child: Column(
-<<<<<<< HEAD
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text("ETA a $nombreDestino",
@@ -2241,50 +1144,6 @@ class _TarjetaETA extends StatelessWidget {
                       ),
                     ]),
               ),
-=======
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Llegada estimada a $nombreDestino',
-                        style: const TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey,
-                            fontWeight: FontWeight.w500)),
-                    const SizedBox(height: 2),
-                    Text('${destinoData['eta_minutos']} min',
-                        style: const TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                            color: _kAzul)),
-                    Text('${destinoData['distancia_km']} km restantes',
-                        style:
-                            const TextStyle(fontSize: 11, color: Colors.grey)),
-                  ],
-                ),
-              ),
-              if (nivelTrafico != 'bajo')
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: nivelTrafico == 'alto'
-                        ? Colors.red.shade50
-                        : Colors.orange.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    nivelTrafico == 'alto'
-                        ? '🔴 Trafico alto'
-                        : '🟡 Trafico medio',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: nivelTrafico == 'alto'
-                          ? Colors.red.shade700
-                          : Colors.orange.shade700,
-                    ),
-                  ),
-                ),
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
             ]),
           ),
         );
@@ -2293,7 +1152,6 @@ class _TarjetaETA extends StatelessWidget {
   }
 }
 
-<<<<<<< HEAD
 class _TarjetaPanelControl extends StatelessWidget {
   final String camionetaId;
   final FirebaseFirestore db;
@@ -2305,40 +1163,11 @@ class _TarjetaPanelControl extends StatelessWidget {
       "nivel_trafico": nivel,
       "nivel_trafico_ts": FieldValue.serverTimestamp(),
     });
-=======
-// ─────────────────────────────────────────────────────────────────────────────
-// TARJETA PANEL DE CONTROL (Pasajeros + Trafico)
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _TarjetaPanelControl extends StatefulWidget {
-  final String camionetaId;
-  final FirebaseFirestore db;
-  const _TarjetaPanelControl({required this.camionetaId, required this.db});
-
-  @override
-  State<_TarjetaPanelControl> createState() => _TarjetaPanelControlState();
-}
-
-class _TarjetaPanelControlState extends State<_TarjetaPanelControl> {
-  String _nivelTrafico = 'bajo';
-
-  Future<void> _cambiarTrafico(String nivel) async {
-    setState(() => _nivelTrafico = nivel);
-    try {
-      await widget.db.collection('camionetas').doc(widget.camionetaId).update({
-        'nivel_trafico': nivel,
-        'trafico_denso': nivel == 'alto',
-      });
-    } catch (e) {
-      debugPrint('Error al actualizar trafico: $e');
-    }
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
   }
 
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<DocumentSnapshot>(
-<<<<<<< HEAD
       stream: db.collection("camionetas").doc(camionetaId).snapshots(),
       builder: (context, snap) {
         if (!snap.hasData || !snap.data!.exists) {
@@ -2364,45 +1193,12 @@ class _TarjetaPanelControlState extends State<_TarjetaPanelControl> {
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
-=======
-      stream: widget.db
-          .collection('camionetas')
-          .doc(widget.camionetaId)
-          .snapshots(),
-      builder: (context, snap) {
-        if (!snap.hasData || !snap.data!.exists) {
-          return const SizedBox();
-        }
-
-        final data = snap.data!.data() as Map<String, dynamic>;
-        final asientos = (data['asientos'] as Map<String, dynamic>?) ?? {};
-        final pasajeros = asientos.entries
-            .where((e) => e.value is Map && (e.value as Map)['ocupado'] == true)
-            .toList();
-        final totalPasajeros = pasajeros.length;
-        final nivelActual = data['nivel_trafico'] as String? ?? 'bajo';
-
-        return Column(
-          children: [
-            // ── CONTADOR DE PASAJEROS ──
-            Card(
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16)),
-              elevation: 2,
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Row(children: [
                       Icon(Icons.people_rounded, color: _kAzul, size: 20),
                       SizedBox(width: 8),
-<<<<<<< HEAD
                       Text("Pasajeros a bordo",
-=======
-                      Text('Pasajeros a bordo',
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
                           style: TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 15,
@@ -2410,7 +1206,6 @@ class _TarjetaPanelControlState extends State<_TarjetaPanelControl> {
                     ]),
                     const SizedBox(height: 16),
 
-<<<<<<< HEAD
                     // Contador
                     Center(
                       child: Container(
@@ -2485,99 +1280,11 @@ class _TarjetaPanelControlState extends State<_TarjetaPanelControl> {
                         color: total >= 24
                             ? Colors.red
                             : total >= 18
-=======
-                    // Contador visual grande
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 28, vertical: 16),
-                          decoration: BoxDecoration(
-                            color: totalPasajeros >= 24
-                                ? Colors.red.shade50
-                                : totalPasajeros >= 18
-                                    ? Colors.orange.shade50
-                                    : Colors.green.shade50,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                              color: totalPasajeros >= 24
-                                  ? Colors.red.shade300
-                                  : totalPasajeros >= 18
-                                      ? Colors.orange.shade300
-                                      : Colors.green.shade300,
-                              width: 2,
-                            ),
-                          ),
-                          child: Column(children: [
-                            RichText(
-                              text: TextSpan(
-                                children: [
-                                  TextSpan(
-                                    text: '$totalPasajeros',
-                                    style: TextStyle(
-                                      fontSize: 56,
-                                      fontWeight: FontWeight.bold,
-                                      color: totalPasajeros >= 24
-                                          ? Colors.red.shade700
-                                          : totalPasajeros >= 18
-                                              ? Colors.orange.shade700
-                                              : Colors.green.shade700,
-                                    ),
-                                  ),
-                                  TextSpan(
-                                    text: ' / 24',
-                                    style: TextStyle(
-                                      fontSize: 24,
-                                      color: Colors.grey.shade500,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Text(
-                              totalPasajeros >= 24
-                                  ? 'Unidad llena'
-                                  : totalPasajeros >= 18
-                                      ? 'Casi llena'
-                                      : 'Asientos disponibles',
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: totalPasajeros >= 24
-                                    ? Colors.red.shade700
-                                    : totalPasajeros >= 18
-                                        ? Colors.orange.shade700
-                                        : Colors.green.shade700,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ]),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    // Barra de progreso de ocupacion
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: LinearProgressIndicator(
-                        value: totalPasajeros / 24,
-                        backgroundColor: Colors.grey.shade200,
-                        color: totalPasajeros >= 24
-                            ? Colors.red
-                            : totalPasajeros >= 18
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
                                 ? Colors.orange
                                 : Colors.green,
                         minHeight: 10,
                       ),
                     ),
-<<<<<<< HEAD
-=======
-
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
                     const SizedBox(height: 16),
 
                     // Lista de pasajeros
@@ -2585,11 +1292,7 @@ class _TarjetaPanelControlState extends State<_TarjetaPanelControl> {
                       const Center(
                         child: Padding(
                           padding: EdgeInsets.symmetric(vertical: 8),
-<<<<<<< HEAD
                           child: Text("Sin pasajeros aún.",
-=======
-                          child: Text('Sin pasajeros aun.',
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
                               style: TextStyle(color: Colors.grey)),
                         ),
                       )
@@ -2599,7 +1302,6 @@ class _TarjetaPanelControlState extends State<_TarjetaPanelControl> {
                           final v = entry.value as Map;
                           return _FilaPasajero(
                             asiento: entry.key,
-<<<<<<< HEAD
                             nombre: v["nombre_pasajero"] as String? ?? "-",
                             cedula: v["cedula_pasajero"] as String? ?? "-",
                             estadoPago:
@@ -2623,98 +1325,44 @@ class _TarjetaPanelControlState extends State<_TarjetaPanelControl> {
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
-=======
-                            nombre: v['nombre_pasajero'] as String? ?? '-',
-                            cedula: v['cedula_pasajero'] as String? ?? '-',
-                            estadoPago:
-                                v['estado_pago'] as String? ?? 'pendiente',
-                            camionetaId: widget.camionetaId,
-                            db: widget.db,
-                          );
-                        }).toList(),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 12),
-
-            // ── SELECTOR DE TRAFICO ──
-            Card(
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16)),
-              elevation: 2,
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Row(children: [
                       Icon(Icons.traffic_rounded, color: _kAzul, size: 20),
                       SizedBox(width: 8),
-<<<<<<< HEAD
                       Text("Nivel de Tráfico",
-=======
-                      Text('Nivel de Trafico',
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
                           style: TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 15,
                               color: _kAzul)),
                     ]),
                     const SizedBox(height: 6),
-<<<<<<< HEAD
                     const Text("Indica el tráfico para ajustar el ETA",
                         style: TextStyle(fontSize: 12, color: Colors.grey)),
-=======
-                    const Text(
-                      'Indica el trafico actual para ajustar el ETA',
-                      style: TextStyle(fontSize: 12, color: Colors.grey),
-                    ),
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
                     const SizedBox(height: 14),
                     Row(children: [
                       Expanded(
                         child: _BotonTrafico(
-<<<<<<< HEAD
                           label: "Bajo",
                           emoji: "🟢",
                           seleccionado: nivelActual == "bajo",
                           color: Colors.green,
                           onTap: () => _cambiarTrafico(context, "bajo"),
-=======
-                          label: 'Bajo',
-                          emoji: '🟢',
-                          seleccionado: nivelActual == 'bajo',
-                          color: Colors.green,
-                          onTap: () => _cambiarTrafico('bajo'),
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
                         ),
                       ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: _BotonTrafico(
-<<<<<<< HEAD
                           label: "Medio",
                           emoji: "🟡",
                           seleccionado: nivelActual == "medio",
                           color: Colors.orange,
                           onTap: () => _cambiarTrafico(context, "medio"),
-=======
-                          label: 'Medio',
-                          emoji: '🟡',
-                          seleccionado: nivelActual == 'medio',
-                          color: Colors.orange,
-                          onTap: () => _cambiarTrafico('medio'),
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
                         ),
                       ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: _BotonTrafico(
-<<<<<<< HEAD
                           label: "Alto",
                           emoji: "🔴",
                           seleccionado: nivelActual == "alto",
@@ -2727,22 +1375,6 @@ class _TarjetaPanelControlState extends State<_TarjetaPanelControl> {
             ),
           ),
         ]);
-=======
-                          label: 'Alto',
-                          emoji: '🔴',
-                          seleccionado: nivelActual == 'alto',
-                          color: Colors.red,
-                          onTap: () => _cambiarTrafico('alto'),
-                        ),
-                      ),
-                    ]),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        );
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
       },
     );
   }
@@ -2765,7 +1397,6 @@ class _BotonTrafico extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-<<<<<<< HEAD
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(10),
@@ -2776,24 +1407,11 @@ class _BotonTrafico extends StatelessWidget {
           color:
               seleccionado ? color.withValues(alpha: 0.15) : Colors.transparent,
           borderRadius: BorderRadius.circular(10),
-=======
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: seleccionado
-              ? color.withValues(alpha: 0.15)
-              : Colors.grey.shade100,
-          borderRadius: BorderRadius.circular(12),
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
           border: Border.all(
             color: seleccionado ? color : Colors.grey.shade300,
             width: seleccionado ? 2 : 1,
           ),
         ),
-<<<<<<< HEAD
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           Text(emoji, style: const TextStyle(fontSize: 18)),
           const SizedBox(height: 4),
@@ -2804,23 +1422,6 @@ class _BotonTrafico extends StatelessWidget {
                   fontWeight:
                       seleccionado ? FontWeight.bold : FontWeight.normal)),
         ]),
-=======
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(emoji, style: const TextStyle(fontSize: 22)),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 13,
-                color: seleccionado ? color : Colors.grey.shade600,
-              ),
-            ),
-          ],
-        ),
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
       ),
     );
   }
@@ -2854,7 +1455,6 @@ class _FilaPasajeroState extends State<_FilaPasajero> {
     setState(() => _procesando = true);
     try {
       await widget.db
-<<<<<<< HEAD
           .collection("camionetas")
           .doc(widget.camionetaId)
           .update({"asientos.${widget.asiento}.estado_pago": "confirmado"});
@@ -2933,15 +1533,6 @@ class _FilaPasajeroState extends State<_FilaPasajero> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text("Error: $e"), backgroundColor: Colors.red.shade700));
-=======
-          .collection('camionetas')
-          .doc(widget.camionetaId)
-          .update({'asientos.${widget.asiento}.estado_pago': 'confirmado'});
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
     } finally {
       if (mounted) setState(() => _procesando = false);
     }
@@ -2949,19 +1540,11 @@ class _FilaPasajeroState extends State<_FilaPasajero> {
 
   @override
   Widget build(BuildContext context) {
-<<<<<<< HEAD
     final isPagado = widget.estadoPago == "pagado" ||
         widget.estadoPago == "confirmado" ||
         widget.estadoPago == "mensualidad";
     final isPendiente = widget.estadoPago == "pendiente_pago" ||
         widget.estadoPago == "en_puerta";
-=======
-    final isPagado = widget.estadoPago == 'pagado' ||
-        widget.estadoPago == 'confirmado' ||
-        widget.estadoPago == 'mensualidad';
-    final isPendiente = widget.estadoPago == 'pendiente_pago' ||
-        widget.estadoPago == 'en_puerta';
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -3000,7 +1583,6 @@ class _FilaPasajeroState extends State<_FilaPasajero> {
             Text(widget.nombre,
                 style:
                     const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-<<<<<<< HEAD
             Text("C.I. ${widget.cedula}",
                 style: const TextStyle(fontSize: 11, color: Colors.grey)),
           ]),
@@ -3064,53 +1646,11 @@ class _FilaPasajeroState extends State<_FilaPasajero> {
               ),
             ),
           ]),
-=======
-            Text('C.I. ${widget.cedula}',
-                style: const TextStyle(fontSize: 11, color: Colors.grey)),
-          ]),
-        ),
-        if (isPagado)
-          const Chip(
-            label: Text('PAGADO',
-                style: TextStyle(
-                    color: Colors.green,
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold)),
-            backgroundColor: Colors.transparent,
-            side: BorderSide(color: Colors.green),
-            padding: EdgeInsets.zero,
-          )
-        else if (isPendiente)
-          _procesando
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2))
-              : FilledButton(
-                  onPressed: _confirmarPago,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: Colors.orange.shade700,
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    minimumSize: Size.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    textStyle: const TextStyle(fontSize: 10),
-                  ),
-                  child: const Text('Confirmar\nPago'),
-                ),
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
       ]),
     );
   }
 }
 
-<<<<<<< HEAD
-=======
-// ─────────────────────────────────────────────────────────────────────────────
-// BOTTOM SHEET EMERGENCIA CONDUCTOR
-// ─────────────────────────────────────────────────────────────────────────────
-
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
 class _BottomSheetEmergenciaConductor extends StatelessWidget {
   final bool emergenciaActiva;
   final void Function(String) onEmergencia;
@@ -3125,16 +1665,11 @@ class _BottomSheetEmergenciaConductor extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-<<<<<<< HEAD
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
-=======
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 36),
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-<<<<<<< HEAD
           Row(children: [
             const Icon(Icons.warning_rounded, color: Colors.red, size: 26),
             const SizedBox(width: 10),
@@ -3143,34 +1678,18 @@ class _BottomSheetEmergenciaConductor extends StatelessWidget {
               style: const TextStyle(
                   fontWeight: FontWeight.bold, fontSize: 18, color: Colors.red),
             ),
-=======
-          const Row(children: [
-            Icon(Icons.warning_rounded, color: Colors.red, size: 26),
-            SizedBox(width: 10),
-            Text('Panel de Emergencia',
-                style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 18,
-                    color: Colors.red)),
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
           ]),
           const SizedBox(height: 16),
           if (emergenciaActiva) ...[
             _OpcionEmergencia(
               icono: Icons.check_circle_outline_rounded,
-<<<<<<< HEAD
               label: "Resolver Emergencia",
               subtitulo: "Libera la unidad y los asientos",
-=======
-              label: 'Resolver Emergencia',
-              subtitulo: 'Libera la unidad y reactiva el servicio',
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
               color: Colors.green,
               onTap: onResolver,
             ),
           ] else ...[
             _OpcionEmergencia(
-<<<<<<< HEAD
               icono: Icons.personal_injury_rounded,
               label: "Reportar Desmayo",
               subtitulo: "Un pasajero se encuentra desmayado",
@@ -3192,21 +1711,6 @@ class _BottomSheetEmergenciaConductor extends StatelessWidget {
               subtitulo: "Accidente de transito",
               color: Colors.red.shade900,
               onTap: () => onEmergencia("Colision/Choque vial"),
-=======
-              icono: Icons.build_circle_outlined,
-              label: 'Falla Mecanica',
-              subtitulo: 'Problema tecnico en la unidad',
-              color: Colors.orange,
-              onTap: () => onEmergencia('Falla mecanica'),
-            ),
-            const SizedBox(height: 8),
-            _OpcionEmergencia(
-              icono: Icons.car_crash_rounded,
-              label: 'Colision / Choque Vial',
-              subtitulo: 'Activa unidad de respaldo automaticamente',
-              color: Colors.red,
-              onTap: () => onEmergencia('Colision/Choque vial'),
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
             ),
           ],
         ],
@@ -3246,7 +1750,6 @@ class _OpcionEmergencia extends StatelessWidget {
           Icon(icono, color: color, size: 28),
           const SizedBox(width: 14),
           Expanded(
-<<<<<<< HEAD
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(label,
@@ -3255,21 +1758,6 @@ class _OpcionEmergencia extends StatelessWidget {
               Text(subtitulo,
                   style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
             ]),
-=======
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label,
-                    style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                        color: color)),
-                Text(subtitulo,
-                    style:
-                        TextStyle(color: Colors.grey.shade600, fontSize: 12)),
-              ],
-            ),
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
           ),
           Icon(Icons.arrow_forward_ios_rounded,
               color: color.withValues(alpha: 0.5), size: 14),
@@ -3277,8 +1765,4 @@ class _OpcionEmergencia extends StatelessWidget {
       ),
     );
   }
-<<<<<<< HEAD
 }
-=======
-}
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce

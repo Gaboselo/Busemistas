@@ -1,5 +1,4 @@
 // lib/vistas/estudiante_home_vista.dart
-<<<<<<< HEAD
 // Busemistas USM v6 - REESCRITURA DEFINITIVA
 // REGLA: variables/keys sin tildes. Textos de UI con ortografia correcta (tildes y enie).
 // Puntos implementados:
@@ -9,17 +8,6 @@
 //   7. onTap de buses en movimiento DESHABILITADO; solo paradas son tapeables
 
 import 'dart:async';
-=======
-// Busemistas USM v5
-// REGLA: sin tildes, sin enies, sin caracteres especiales.
-// Cambios v5:
-//   - Marcadores de parada (La California y USM) son tapeables (GestureDetector)
-//   - Al tocar un marcador de parada se abre _ModalInfoParada via showModalBottomSheet
-//   - El modal lista en tiempo real (StreamBuilder) todas las camionetas en camino
-//     hacia esa parada, con ID, asientos libres y ETA calculado
-//   - Header muestra "Empleado" o "Estudiante" segun rol del AuthProvider
-
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
 import 'dart:math' as math;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -33,16 +21,11 @@ import '../providers/auth_provider.dart';
 import '../providers/camioneta_provider.dart';
 import 'seleccion_asientos_vista.dart';
 import 'monedero_vista.dart';
-<<<<<<< HEAD
-=======
-import 'horarios_vista.dart';
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
 import 'perfil_vista.dart';
 import 'login_vista.dart';
 import '../servicios/ruta_servicio.dart';
 
 const Color _kAzul = Color(0xFF0E004A);
-<<<<<<< HEAD
 const LatLng _coordUSM = LatLng(10.491360068207142, -66.78017873573735);
 const LatLng _coordLaCalif = LatLng(10.483376, -66.819402);
 
@@ -52,21 +35,10 @@ const LatLng _coordLaCalif = LatLng(10.483376, -66.819402);
 
 class EstudianteHomeVista extends StatefulWidget {
   const EstudianteHomeVista({super.key});
-=======
-
-// Coordenadas reales
-const LatLng _coordUSM = LatLng(10.491360068207142, -66.78017873573735);
-const LatLng _coordLaCalif = LatLng(10.483376, -66.819402);
-
-class EstudianteHomeVista extends StatefulWidget {
-  const EstudianteHomeVista({super.key});
-
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
   @override
   State<EstudianteHomeVista> createState() => _EstudianteHomeVistaState();
 }
 
-<<<<<<< HEAD
 // =============================================================================
 // STATE PRINCIPAL
 // =============================================================================
@@ -81,24 +53,12 @@ class _EstudianteHomeVistaState extends State<EstudianteHomeVista>
   // Controla si ya se mostro el dialogo de visitante en esta sesion
   bool _dialogoVisitanteMostrado = false;
 
-=======
-class _EstudianteHomeVistaState extends State<EstudianteHomeVista>
-    with TickerProviderStateMixin {
-  final MapController _mapCtrl = MapController();
-  bool _emergenciaActiva = false;
-
-  // Cache de posicion anterior por camioneta para calculo de heading
-  final Map<String, LatLng> _posAnterior = {};
-  final RutaServicio _rutaServicio = RutaServicio();
-  final Map<String, List<LatLng>> _cacheRutas = {};
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<CamionetaProvider>().iniciarStream();
       context.read<AuthProvider>().refrescarDatosUsuario();
-<<<<<<< HEAD
       _verificarDialogoVisitante();
     });
   }
@@ -211,33 +171,19 @@ class _EstudianteHomeVistaState extends State<EstudianteHomeVista>
   // HELPERS MATEMATICOS
   // ---------------------------------------------------------------------------
 
-=======
-    });
-  }
-
-  // ── Calcular distancia en metros ─────────────────────────────────
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
   double _calcularDistanciaMetros(
       double busLat, double busLng, LatLng destino) {
     return Geolocator.distanceBetween(
         busLat, busLng, destino.latitude, destino.longitude);
   }
 
-<<<<<<< HEAD
   double _calcularETAMin(double distanciaMetros) {
     const velocidadKmH = 40.0;
     return (distanciaMetros / 1000.0 / velocidadKmH) * 60.0;
-=======
-  // ── Calcular ETA en minutos (40 km/h promedio) ───────────────────
-  double _calcularETAMin(double distanciaMetros) {
-    const velocidadKmH = 40.0;
-    return (distanciaMetros / 1000 / velocidadKmH) * 60;
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
   }
 
   String _formatHoraLlegada(double etaMinutos) {
     final llegada = DateTime.now().add(Duration(minutes: etaMinutos.round()));
-<<<<<<< HEAD
     final h = llegada.hour;
     final h12 = h > 12 ? h - 12 : (h == 0 ? 12 : h);
     final ampm = h < 12 ? 'AM' : 'PM';
@@ -266,23 +212,6 @@ class _EstudianteHomeVistaState extends State<EstudianteHomeVista>
 
   Color _colorBusPorETA(EstadoCamioneta estado, double? etaMin) {
     if (estado == EstadoCamioneta.emergencia) return Colors.red;
-=======
-    final h12 = llegada.hour > 12
-        ? llegada.hour - 12
-        : llegada.hour == 0
-            ? 12
-            : llegada.hour;
-    final ampm = llegada.hour < 12 ? 'AM' : 'PM';
-    return '${h12.toString().padLeft(2, '0')}:${llegada.minute.toString().padLeft(2, '0')} $ampm';
-  }
-
-  // ── Color dinamico del bus segun ETA y estado ────────────────────
-  // Disponible/detenido: gris
-  // en_camino ETA < 20: verde
-  // en_camino ETA 20-30: amarillo
-  // en_camino ETA > 30: rojo
-  Color _colorBusPorETA(EstadoCamioneta estado, double? etaMin) {
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
     if (estado != EstadoCamioneta.en_camino) return Colors.grey.shade500;
     if (etaMin == null) return Colors.green;
     if (etaMin > 30) return Colors.red;
@@ -290,7 +219,6 @@ class _EstudianteHomeVistaState extends State<EstudianteHomeVista>
     return Colors.green;
   }
 
-<<<<<<< HEAD
   // ---------------------------------------------------------------------------
   // POLILÍNEAS CON OSRM + CACHE
   // ---------------------------------------------------------------------------
@@ -299,24 +227,10 @@ class _EstudianteHomeVistaState extends State<EstudianteHomeVista>
     final result = <Polyline>[];
     for (final c in camionetas) {
       if (c.ubicacion == null) continue;
-=======
-  // ── Heading aproximado entre dos puntos ─────────────────────────
-  double _calcularHeading(LatLng origen, LatLng destino) {
-    final dLng = destino.longitude - origen.longitude;
-    final dLat = destino.latitude - origen.latitude;
-    final angulo = math.atan2(dLng, dLat);
-    return angulo;
-  }
-
-// --- Construir polilíneas bus -> destino ---
-  List<Polyline> _buildPolylines(List<CamionetaModelo> camionetas) {
-    return camionetas.where((c) => c.ubicacion != null).map((c) {
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
       final busPos = LatLng(c.ubicacion!.latitude, c.ubicacion!.longitude);
       final destino = _destinoLatLng(c.destino);
 
       Color lineColor = _kAzul.withValues(alpha: 0.7);
-<<<<<<< HEAD
       if (c.estado == EstadoCamioneta.emergencia) {
         lineColor = Colors.red;
       } else if (c.estado == EstadoCamioneta.en_camino) {
@@ -357,65 +271,10 @@ class _EstudianteHomeVistaState extends State<EstudianteHomeVista>
   // MARCADORES — buses SIN onTap; solo paradas son tapeables (punto 7)
   // ---------------------------------------------------------------------------
 
-=======
-      if (c.estado.toString().contains('emergencia')) {
-        lineColor = Colors.red;
-      }
-
-      final String llaveCache = "${busPos.latitude.toStringAsFixed(4)},${busPos.longitude.toStringAsFixed(4)}";
-      List<LatLng> puntosParaDibujar;
-
-      if (_cacheRutas.containsKey(llaveCache)) {
-        // 1. Usamos la ruta guardada en caché
-        puntosParaDibujar = _cacheRutas[llaveCache]!;
-      } else {
-        // 2. Pedimos la ruta real al servicio y dibujamos una línea recta mientras tanto
-        _rutaServicio.obtenerRuta(busPos, destino).then((puntos) {
-          if (mounted) {
-            setState(() {
-              _cacheRutas[llaveCache] = puntos;
-            });
-          }
-        }).catchError((e) {
-          debugPrint("Error al cargar ruta: $e");
-        });
-
-        final mid = LatLng(
-          (busPos.latitude + destino.latitude) / 2,
-          (busPos.longitude + destino.longitude) / 2,
-        );
-        puntosParaDibujar = [busPos, mid, destino];
-      }
-
-      return Polyline(
-        points: puntosParaDibujar,
-        strokeWidth: 3.5,
-        color: lineColor,
-      );
-    }).toList();
-  }
-  
-  LatLng _destinoLatLng(String destino) {
-    return destino.toLowerCase().contains('usm') ||
-            destino.toLowerCase().contains('florencia')
-        ? _coordUSM
-        : _coordLaCalif;
-  }
-
-  String _sentidoTexto(String destino) {
-    return destino.toLowerCase().contains('usm') ||
-            destino.toLowerCase().contains('florencia')
-        ? 'Sentido: USM Sede La Florencia'
-        : 'Sentido: Estacion La California';
-  }
-
-  // ── Marcadores con color dinamico y rotacion ─────────────────────
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
   List<Marker> _buildMarkers(
       List<CamionetaModelo> camionetas, Map<String, double?> etaMap) {
     final markers = <Marker>[];
 
-<<<<<<< HEAD
     // Parada La California — tapeable (azul claro)
     markers.add(Marker(
       point: _coordLaCalif,
@@ -462,118 +321,20 @@ class _EstudianteHomeVistaState extends State<EstudianteHomeVista>
       // No mostrar icono si el bus está disponible/parado en la parada
       if (c.estado == EstadoCamioneta.disponible) continue;
 
-=======
-    // Marcador fijo: La California con pin (tapeable -> modal de clustering)
-    markers.add(Marker(
-      point: _coordLaCalif,
-      width: 44,
-      height: 44,
-      child: GestureDetector(
-        onTap: () => _mostrarModalParada(
-          context: context,
-          nombreParada: 'Estacion La California',
-          keywordDestino: 'california',
-          camionetas: camionetas,
-          etaMap: etaMap,
-        ),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: Colors.orange.shade700,
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(color: Colors.orange.withValues(alpha: 0.4), blurRadius: 6)
-              ],
-            ),
-            child: const Icon(Icons.location_on_rounded,
-                color: Colors.white, size: 18),
-          ),
-          const SizedBox(height: 1),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-            decoration: BoxDecoration(
-                color: Colors.orange.shade700,
-                borderRadius: BorderRadius.circular(4)),
-            child: const Text('La Calif.',
-                style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 7,
-                    fontWeight: FontWeight.bold)),
-          ),
-        ]),
-      ),
-    ));
-
-    // Marcador fijo: USM con birrete (tapeable -> modal de clustering)
-    markers.add(Marker(
-      point: _coordUSM,
-      width: 48,
-      height: 48,
-      child: GestureDetector(
-        onTap: () => _mostrarModalParada(
-          context: context,
-          nombreParada: 'USM Sede La Florencia',
-          keywordDestino: 'usm',
-          camionetas: camionetas,
-          etaMap: etaMap,
-        ),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(
-            padding: const EdgeInsets.all(7),
-            decoration: BoxDecoration(
-              color: _kAzul,
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(color: _kAzul.withValues(alpha: 0.5), blurRadius: 8)
-              ],
-            ),
-            child: const Icon(Icons.school, color: Colors.white, size: 20),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-            decoration: BoxDecoration(
-                color: _kAzul, borderRadius: BorderRadius.circular(4)),
-            child: const Text('USM',
-                style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 7,
-                    fontWeight: FontWeight.bold)),
-          ),
-        ]),
-      ),
-    ));
-
-    // Marcadores de buses con color dinamico y rotacion
-    for (final c in camionetas.where((c) => c.ubicacion != null)) {
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
       final busPos = LatLng(c.ubicacion!.latitude, c.ubicacion!.longitude);
       final etaMin = etaMap[c.id];
       final color = _colorBusPorETA(c.estado, etaMin);
 
-<<<<<<< HEAD
       double heading = 0.0;
       final prev = _posAnterior[c.id];
       if (prev != null) heading = _calcularHeading(prev, busPos);
       _posAnterior[c.id] = busPos;
 
       final esEmergencia = c.estado == EstadoCamioneta.emergencia;
-=======
-      // Calcular heading si hay posicion anterior
-      double heading = 0;
-      final prevPos = _posAnterior[c.id];
-      if (prevPos != null) {
-        heading = _calcularHeading(prevPos, busPos);
-      }
-      // Guardar posicion actual para siguiente tick
-      _posAnterior[c.id] = busPos;
-
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
       markers.add(Marker(
         point: busPos,
         width: 44,
         height: 44,
-<<<<<<< HEAD
         child: Transform.rotate(
           angle: heading,
           child: Container(
@@ -590,33 +351,10 @@ class _EstudianteHomeVistaState extends State<EstudianteHomeVista>
             ),
             child: const Icon(Icons.directions_bus_rounded,
                 color: Colors.white, size: 24),
-=======
-        child: GestureDetector(
-          onTap: () => _mostrarInfoCamioneta(context, c),
-          child: Transform.rotate(
-            angle: heading,
-            child: Container(
-              decoration: BoxDecoration(
-                color: color,
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: color.withValues(alpha: 0.5),
-                    blurRadius: c.estado == EstadoCamioneta.emergencia ? 18 : 8,
-                    spreadRadius:
-                        c.estado == EstadoCamioneta.emergencia ? 3 : 0,
-                  )
-                ],
-              ),
-              child: const Icon(Icons.directions_bus_rounded,
-                  color: Colors.white, size: 24),
-            ),
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
           ),
         ),
       ));
     }
-<<<<<<< HEAD
     return markers;
   }
 
@@ -627,29 +365,6 @@ class _EstudianteHomeVistaState extends State<EstudianteHomeVista>
   void _mostrarModalParada({
     required String nombreParada,
     required String keywordDestino,
-=======
-
-    return markers;
-  }
-
-  void _mostrarInfoCamioneta(BuildContext context, CamionetaModelo c) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-          builder: (_) => SeleccionAsientosVista(camionetaId: c.id)),
-    );
-  }
-
-  // ── Modal de clustering: informacion de buses en una parada ──────
-  // Se abre al tocar el marcador de La California o de la USM.
-  // Lista en tiempo real las unidades cuyo destino coincide con la parada.
-  // keywordDestino: 'usm' o 'california' para filtrar el campo 'destino'.
-  void _mostrarModalParada({
-    required BuildContext context,
-    required String nombreParada,
-    required String keywordDestino,
-    required List<CamionetaModelo> camionetas,
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
     required Map<String, double?> etaMap,
   }) {
     showModalBottomSheet(
@@ -674,81 +389,7 @@ class _EstudianteHomeVistaState extends State<EstudianteHomeVista>
     );
   }
 
-<<<<<<< HEAD
   void _cerrarSesion() {
-=======
-  // ── Emergencia ───────────────────────────────────────────────────
-  void _mostrarEmergenciaSheet(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (_) => _BottomSheetEmergenciaEstudiante(
-        emergenciaActiva: _emergenciaActiva,
-        onEmergencia: (tipo) async {
-          Navigator.pop(context);
-          await _ejecutarEmergencia(context, tipo);
-        },
-        onResolver: () async {
-          Navigator.pop(context);
-          await _resolverEmergencia(context);
-        },
-      ),
-    );
-  }
-
-  Future<void> _ejecutarEmergencia(
-      BuildContext context, String tipoEmergencia) async {
-    try {
-      await FirebaseFirestore.instance
-          .collection('camionetas')
-          .doc('camioneta_01')
-          .update({
-        'estado': 'emergencia',
-        'tipo_emergencia': tipoEmergencia,
-        'ts_emergencia': FieldValue.serverTimestamp(),
-      });
-      setState(() => _emergenciaActiva = true);
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Emergencia reportada: $tipoEmergencia'),
-        backgroundColor: Colors.red.shade700,
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 5),
-      ));
-    } catch (e) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Error: $e')));
-    }
-  }
-
-  Future<void> _resolverEmergencia(BuildContext context) async {
-    try {
-      await FirebaseFirestore.instance
-          .collection('camionetas')
-          .doc('camioneta_01')
-          .update({
-        'estado': 'disponible',
-        'tipo_emergencia': FieldValue.delete(),
-        'ts_emergencia': FieldValue.delete(),
-      });
-      setState(() => _emergenciaActiva = false);
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Emergencia resuelta. Unidad disponible.'),
-        backgroundColor: Colors.green,
-      ));
-    } catch (e) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Error: $e')));
-    }
-  }
-
-  void _cerrarSesion(BuildContext context) {
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
     context.read<AuthProvider>().cerrarSesion();
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const LoginVista()),
@@ -756,20 +397,16 @@ class _EstudianteHomeVistaState extends State<EstudianteHomeVista>
     );
   }
 
-<<<<<<< HEAD
   // ---------------------------------------------------------------------------
   // BUILD PRINCIPAL
   // Detecta viaje activo en tiempo real. Si existe -> _PantallaViajeActivo.
   // ---------------------------------------------------------------------------
 
-=======
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
     final camProv = context.watch<CamionetaProvider>();
     final primerNombre = (auth.nombreCompleto ?? 'Usuario').split(' ').first;
-<<<<<<< HEAD
     final cedula = auth.cedulaActual ?? '';
 
     final Map<String, double?> etaMap = {};
@@ -778,23 +415,12 @@ class _EstudianteHomeVistaState extends State<EstudianteHomeVista>
         final dest = _destinoLatLng(c.destino);
         final dist = _calcularDistanciaMetros(
             c.ubicacion!.latitude, c.ubicacion!.longitude, dest);
-=======
-
-    // Calcular ETA por camioneta para el mapa
-    final Map<String, double?> etaMap = {};
-    for (final c in camProv.camionetas) {
-      if (c.ubicacion != null) {
-        final destino = _destinoLatLng(c.destino);
-        final dist = _calcularDistanciaMetros(
-            c.ubicacion!.latitude, c.ubicacion!.longitude, destino);
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
         etaMap[c.id] = _calcularETAMin(dist);
       } else {
         etaMap[c.id] = null;
       }
     }
 
-<<<<<<< HEAD
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance.collection('camionetas').snapshots(),
       builder: (context, snap) {
@@ -1496,81 +1122,10 @@ class _PantallaViajeActivoState extends State<_PantallaViajeActivo>
           ),
         );
       },
-=======
-    return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
-      body: SafeArea(
-        child: Column(children: [
-          // Header
-          _HeaderEstudiante(
-            primerNombre: primerNombre,
-            onLogout: () => _cerrarSesion(context),
-            onEmergencia: () => _mostrarEmergenciaSheet(context),
-            emergenciaActiva: _emergenciaActiva,
-          ),
-
-          // Accesos rapidos
-          _AccesosRapidos(
-            onMonedero: () => Navigator.push(context,
-                MaterialPageRoute(builder: (_) => const MonederoVista())),
-            onHorarios: () => Navigator.push(context,
-                MaterialPageRoute(builder: (_) => const HorariosVista())),
-            onPerfil: () => Navigator.push(context,
-                MaterialPageRoute(builder: (_) => const PerfilVista())),
-          ),
-
-          // Mapa
-          Expanded(
-            flex: 5,
-            child: ClipRRect(
-              child: FlutterMap(
-                mapController: _mapCtrl,
-                options: const MapOptions(
-                  initialCenter: _coordUSM,
-                  initialZoom: 13.0,
-                  maxZoom: 18,
-                  minZoom: 10,
-                ),
-                children: [
-                  TileLayer(
-                    urlTemplate:
-                        'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
-                    subdomains: const ['a', 'b', 'c', 'd'],
-                    userAgentPackageName: 'com.usm.busemistas',
-                  ),
-                  PolylineLayer(polylines: _buildPolylines(camProv.camionetas)),
-                  MarkerLayer(
-                      markers: _buildMarkers(camProv.camionetas, etaMap)),
-                ],
-              ),
-            ),
-          ),
-
-          // Lista de unidades
-          Expanded(
-            flex: 4,
-            child: _ListaUnidades(
-              camProv: camProv,
-              etaMap: etaMap,
-              calcularDistancia: _calcularDistanciaMetros,
-              formatHora: _formatHoraLlegada,
-              sentidoTexto: _sentidoTexto,
-              destinoLatLng: _destinoLatLng,
-              onVerAsientos: (id) => Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (_) => SeleccionAsientosVista(camionetaId: id)),
-              ),
-            ),
-          ),
-        ]),
-      ),
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
     );
   }
 }
 
-<<<<<<< HEAD
 // =============================================================================
 // WIDGETS REUTILIZABLES
 // =============================================================================
@@ -1617,16 +1172,10 @@ class _MarkerParada extends StatelessWidget {
     );
   }
 }
-=======
-// ─────────────────────────────────────────────────────────────────────────────
-// HEADER
-// ─────────────────────────────────────────────────────────────────────────────
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
 
 class _HeaderEstudiante extends StatelessWidget {
   final String primerNombre;
   final VoidCallback onLogout;
-<<<<<<< HEAD
   final RolUsuario? rol;
   const _HeaderEstudiante(
       {required this.primerNombre, required this.onLogout, required this.rol});
@@ -1634,20 +1183,6 @@ class _HeaderEstudiante extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final esEmpleado = rol == RolUsuario.empleado;
-=======
-  final VoidCallback onEmergencia;
-  final bool emergenciaActiva;
-
-  const _HeaderEstudiante({
-    required this.primerNombre,
-    required this.onLogout,
-    required this.onEmergencia,
-    required this.emergenciaActiva,
-  });
-
-  @override
-  Widget build(BuildContext context) {
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
       color: _kAzul,
@@ -1655,16 +1190,11 @@ class _HeaderEstudiante extends StatelessWidget {
         Expanded(
           child:
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-<<<<<<< HEAD
             Text('¡Hola, $primerNombre!',
-=======
-            Text('Hola, $primerNombre!',
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
                 style: const TextStyle(
                     color: Colors.white,
                     fontSize: 22,
                     fontWeight: FontWeight.bold)),
-<<<<<<< HEAD
             Text(
               switch (rol) {
                 RolUsuario.empleado => 'Empleado — Busemistas USM',
@@ -1678,74 +1208,16 @@ class _HeaderEstudiante extends StatelessWidget {
         IconButton(
           onPressed: onLogout,
           icon: const Icon(Icons.logout_rounded, color: Colors.white70),
-=======
-            const Text('Busemistas USM',
-                style: TextStyle(color: Colors.white70, fontSize: 12)),
-          ]),
-        ),
-        Opacity(
-          opacity: 0.85,
-          child: GestureDetector(
-            onTap: onEmergencia,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 300),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-              decoration: BoxDecoration(
-                color:
-                    emergenciaActiva ? Colors.red : Colors.red.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.red.shade300),
-              ),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.warning_rounded,
-                    color:
-                        emergenciaActiva ? Colors.white : Colors.red.shade200,
-                    size: 18),
-                const SizedBox(width: 4),
-                Text(
-                  emergenciaActiva ? 'EMERGENCIA' : 'SOS',
-                  style: TextStyle(
-                      color:
-                          emergenciaActiva ? Colors.white : Colors.red.shade200,
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold),
-                ),
-              ]),
-            ),
-          ),
-        ),
-        const SizedBox(width: 8),
-        IconButton(
-          icon: const Icon(Icons.logout_rounded, color: Colors.white70),
-          onPressed: onLogout,
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
         ),
       ]),
     );
   }
 }
 
-<<<<<<< HEAD
 class _AccesosRapidos extends StatelessWidget {
   final VoidCallback onMonedero;
   final VoidCallback onPerfil;
   const _AccesosRapidos({required this.onMonedero, required this.onPerfil});
-=======
-// ─────────────────────────────────────────────────────────────────────────────
-// ACCESOS RAPIDOS
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _AccesosRapidos extends StatelessWidget {
-  final VoidCallback onMonedero;
-  final VoidCallback onHorarios;
-  final VoidCallback onPerfil;
-
-  const _AccesosRapidos({
-    required this.onMonedero,
-    required this.onHorarios,
-    required this.onPerfil,
-  });
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
 
   @override
   Widget build(BuildContext context) {
@@ -1759,14 +1231,6 @@ class _AccesosRapidos extends StatelessWidget {
             onTap: onMonedero),
         const SizedBox(width: 10),
         _AccesoCard(
-<<<<<<< HEAD
-=======
-            icono: Icons.schedule_rounded,
-            label: 'Horarios',
-            onTap: onHorarios),
-        const SizedBox(width: 10),
-        _AccesoCard(
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
             icono: Icons.person_rounded, label: 'Perfil', onTap: onPerfil),
       ]),
     );
@@ -1777,10 +1241,6 @@ class _AccesoCard extends StatelessWidget {
   final IconData icono;
   final String label;
   final VoidCallback onTap;
-<<<<<<< HEAD
-=======
-
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
   const _AccesoCard(
       {required this.icono, required this.label, required this.onTap});
 
@@ -1812,15 +1272,9 @@ class _AccesoCard extends StatelessWidget {
   }
 }
 
-<<<<<<< HEAD
 // =============================================================================
 // LISTA DE UNIDADES
 // =============================================================================
-=======
-// ─────────────────────────────────────────────────────────────────────────────
-// LISTA DE UNIDADES
-// ─────────────────────────────────────────────────────────────────────────────
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
 
 class _ListaUnidades extends StatelessWidget {
   final CamionetaProvider camProv;
@@ -1856,7 +1310,6 @@ class _ListaUnidades extends StatelessWidget {
         ]),
       );
     }
-<<<<<<< HEAD
     return Container(
       color: Colors.white,
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -1896,66 +1349,13 @@ class _ListaUnidades extends StatelessWidget {
           ),
         ),
       ]),
-=======
-
-    return Container(
-      color: Colors.white,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-            child: Row(children: [
-              const Icon(Icons.directions_bus_rounded, color: _kAzul, size: 18),
-              const SizedBox(width: 8),
-              Text(
-                'Unidades Disponibles (${camProv.camionetas.length})',
-                style: const TextStyle(
-                    fontWeight: FontWeight.bold, fontSize: 14, color: _kAzul),
-              ),
-            ]),
-          ),
-          Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              itemCount: camProv.camionetas.length,
-              itemBuilder: (_, i) {
-                final c = camProv.camionetas[i];
-                final etaMin = etaMap[c.id];
-                final distancia = c.ubicacion != null
-                    ? calcularDistancia(c.ubicacion!.latitude,
-                        c.ubicacion!.longitude, destinoLatLng(c.destino))
-                    : null;
-                final horaLlegada = etaMin != null ? formatHora(etaMin) : null;
-
-                return _TarjetaCamionetaV4(
-                  camioneta: c,
-                  distanciaMetros: distancia,
-                  etaMinutos: etaMin,
-                  horaLlegada: horaLlegada,
-                  sentido: sentidoTexto(c.destino),
-                  onVerAsientos: onVerAsientos,
-                );
-              },
-            ),
-          ),
-        ],
-      ),
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
     );
   }
 }
 
-<<<<<<< HEAD
 // =============================================================================
 // TARJETA CAMIONETA
 // =============================================================================
-=======
-// ─────────────────────────────────────────────────────────────────────────────
-// TARJETA CAMIONETA V4
-// Limpia etiquetas de trafico si el bus NO esta en camino
-// ─────────────────────────────────────────────────────────────────────────────
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
 
 class _TarjetaCamionetaV4 extends StatelessWidget {
   final CamionetaModelo camioneta;
@@ -1988,34 +1388,18 @@ class _TarjetaCamionetaV4 extends StatelessWidget {
         _ => 'Desconocido',
       };
 
-<<<<<<< HEAD
   Widget? _chipTrafico() {
     if (camioneta.estado != EstadoCamioneta.en_camino) return null;
     if (etaMinutos == null) return null;
     if (etaMinutos! > 30) {
       return _ChipTrafico(
           label: 'Alto Retraso / Cola',
-=======
-  // Solo mostrar indicador de trafico si ESTA en camino
-  // Si no esta en camino -> null (limpia trafico fantasma)
-  Widget? _chipTrafico() {
-    if (camioneta.estado != EstadoCamioneta.en_camino) return null;
-    if (etaMinutos == null) return null;
-
-    if (etaMinutos! > 30) {
-      return _ChipTrafico(
-          label: 'Alto Retraso / Cola Fuerte',
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
           color: Colors.red.shade700,
           icono: Icons.traffic);
     }
     if (etaMinutos! > 20) {
       return _ChipTrafico(
-<<<<<<< HEAD
           label: 'Retraso en la vía',
-=======
-          label: 'Retraso en la via',
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
           color: Colors.orange.shade700,
           icono: Icons.warning_amber_rounded);
     }
@@ -2025,12 +1409,7 @@ class _TarjetaCamionetaV4 extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isEmergencia = camioneta.estado == EstadoCamioneta.emergencia;
-<<<<<<< HEAD
     final chip = _chipTrafico();
-=======
-    final chipTrafico = _chipTrafico();
-
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       margin: const EdgeInsets.only(bottom: 10),
@@ -2052,10 +1431,6 @@ class _TarjetaCamionetaV4 extends StatelessWidget {
           padding: const EdgeInsets.all(14),
           child:
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-<<<<<<< HEAD
-=======
-            // Fila 1: ID + Estado
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
             Row(children: [
               Icon(Icons.directions_bus_rounded, size: 20, color: _colorEstado),
               const SizedBox(width: 8),
@@ -2066,19 +1441,9 @@ class _TarjetaCamionetaV4 extends StatelessWidget {
               _BadgeEstado(etiqueta: _etiquetaEstado, color: _colorEstado),
             ]),
             const SizedBox(height: 6),
-<<<<<<< HEAD
             Text('${camioneta.modelo} — ${camioneta.color}',
                 style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
             const SizedBox(height: 4),
-=======
-
-            // Modelo + Color
-            Text('${camioneta.modelo} - ${camioneta.color}',
-                style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
-            const SizedBox(height: 4),
-
-            // Sentido
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
             Row(children: [
               const Icon(Icons.swap_horiz_rounded, size: 13, color: _kAzul),
               const SizedBox(width: 4),
@@ -2089,11 +1454,6 @@ class _TarjetaCamionetaV4 extends StatelessWidget {
                       fontWeight: FontWeight.w600)),
             ]),
             const SizedBox(height: 6),
-<<<<<<< HEAD
-=======
-
-            // ETA y distancia (solo si esta en camino)
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
             if (camioneta.estado == EstadoCamioneta.en_camino &&
                 distanciaMetros != null &&
                 etaMinutos != null)
@@ -2103,7 +1463,6 @@ class _TarjetaCamionetaV4 extends StatelessWidget {
                 const SizedBox(width: 4),
                 Text(
                   '${(distanciaMetros! / 1000).toStringAsFixed(1)} km  '
-<<<<<<< HEAD
                   '${etaMinutos!.round()} min  Llegada: $horaLlegada',
                   style: TextStyle(color: Colors.grey.shade700, fontSize: 11),
                 ),
@@ -2111,23 +1470,6 @@ class _TarjetaCamionetaV4 extends StatelessWidget {
             if (chip != null)
               Padding(padding: const EdgeInsets.only(top: 6), child: chip),
             const SizedBox(height: 10),
-=======
-                  '${etaMinutos!.round()} min  Llegada aprox: $horaLlegada',
-                  style: TextStyle(color: Colors.grey.shade700, fontSize: 11),
-                ),
-              ]),
-
-            // Chip de trafico (solo si en camino y hay retraso)
-            if (chipTrafico != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 6),
-                child: chipTrafico,
-              ),
-
-            const SizedBox(height: 10),
-
-            // Fila final: asientos + boton
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
             Row(children: [
               _IndicadorAsientos(
                   libres: camioneta.asientosLibres,
@@ -2163,7 +1505,6 @@ class _TarjetaCamionetaV4 extends StatelessWidget {
   }
 }
 
-<<<<<<< HEAD
 // =============================================================================
 // MODAL DE CLUSTERING
 // =============================================================================
@@ -2173,227 +1514,6 @@ class _ModalInfoParada extends StatelessWidget {
   final String keywordDestino;
   final Map<String, double?> etaMap;
   final void Function(String) onSeleccionarCamioneta;
-=======
-class _ChipTrafico extends StatelessWidget {
-  final String label;
-  final Color color;
-  final IconData icono;
-
-  const _ChipTrafico(
-      {required this.label, required this.color, required this.icono});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withValues(alpha: 0.4)),
-      ),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(icono, size: 12, color: color),
-        const SizedBox(width: 4),
-        Text(label,
-            style: TextStyle(
-                fontSize: 11, color: color, fontWeight: FontWeight.w600)),
-      ]),
-    );
-  }
-}
-
-class _BadgeEstado extends StatelessWidget {
-  final String etiqueta;
-  final Color color;
-
-  const _BadgeEstado({required this.etiqueta, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withValues(alpha: 0.4)),
-      ),
-      child: Text(etiqueta,
-          style: TextStyle(
-              fontSize: 11, fontWeight: FontWeight.w600, color: color)),
-    );
-  }
-}
-
-class _IndicadorAsientos extends StatelessWidget {
-  final int libres;
-  final int total;
-
-  const _IndicadorAsientos({required this.libres, required this.total});
-
-  @override
-  Widget build(BuildContext context) {
-    final color = libres == 0
-        ? Colors.red
-        : libres <= 3
-            ? Colors.orange
-            : Colors.green;
-    return Row(mainAxisSize: MainAxisSize.min, children: [
-      Icon(Icons.event_seat_outlined, size: 16, color: color),
-      const SizedBox(width: 4),
-      RichText(
-        text: TextSpan(children: [
-          TextSpan(
-              text: '$libres',
-              style: TextStyle(
-                  fontWeight: FontWeight.bold, fontSize: 14, color: color)),
-          TextSpan(
-              text: '/$total',
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-        ]),
-      ),
-    ]);
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// BOTTOM SHEET EMERGENCIA ESTUDIANTE
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _BottomSheetEmergenciaEstudiante extends StatelessWidget {
-  final bool emergenciaActiva;
-  final void Function(String) onEmergencia;
-  final VoidCallback onResolver;
-
-  const _BottomSheetEmergenciaEstudiante({
-    required this.emergenciaActiva,
-    required this.onEmergencia,
-    required this.onResolver,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(children: [
-            const Icon(Icons.warning_rounded, color: Colors.red, size: 26),
-            const SizedBox(width: 10),
-            Text(
-              emergenciaActiva ? 'Resolver Emergencia' : 'Reportar Emergencia',
-              style: const TextStyle(
-                  fontWeight: FontWeight.bold, fontSize: 18, color: Colors.red),
-            ),
-          ]),
-          const SizedBox(height: 16),
-          if (emergenciaActiva) ...[
-            _OpcionEmergencia(
-              icono: Icons.check_circle_outline_rounded,
-              label: 'Resolver Emergencia',
-              subtitulo: 'Libera la unidad y los asientos',
-              color: Colors.green,
-              onTap: onResolver,
-            ),
-          ] else ...[
-            _OpcionEmergencia(
-              icono: Icons.personal_injury_rounded,
-              label: 'Reportar Desmayo',
-              subtitulo: 'Un pasajero se encuentra desmayado',
-              color: Colors.red,
-              onTap: () => onEmergencia('Desmayo de pasajero'),
-            ),
-            const SizedBox(height: 8),
-            _OpcionEmergencia(
-              icono: Icons.sick_rounded,
-              label: 'Descompensacion / Vomito',
-              subtitulo: 'Pasajero con malestar fisico',
-              color: Colors.orange,
-              onTap: () => onEmergencia('Descompensacion'),
-            ),
-            const SizedBox(height: 8),
-            _OpcionEmergencia(
-              icono: Icons.call_rounded,
-              label: 'Llamar al 911 USM',
-              subtitulo: 'Contactar seguridad universitaria',
-              color: Colors.blue.shade700,
-              onTap: () => onEmergencia('Llamada 911 USM'),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _OpcionEmergencia extends StatelessWidget {
-  final IconData icono;
-  final String label;
-  final String subtitulo;
-  final Color color;
-  final VoidCallback onTap;
-
-  const _OpcionEmergencia({
-    required this.icono,
-    required this.label,
-    required this.subtitulo,
-    required this.color,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.07),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withValues(alpha: 0.3)),
-        ),
-        child: Row(children: [
-          Icon(icono, color: color, size: 28),
-          const SizedBox(width: 14),
-          Expanded(
-            child:
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(label,
-                  style: TextStyle(
-                      fontWeight: FontWeight.bold, fontSize: 14, color: color)),
-              Text(subtitulo,
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
-            ]),
-          ),
-          Icon(Icons.arrow_forward_ios_rounded,
-              color: color.withValues(alpha: 0.5), size: 14),
-        ]),
-      ),
-    );
-  }
-}
-
-// =============================================================================
-// MODAL DE CLUSTERING / INFO DE PARADA
-// =============================================================================
-// Se muestra al tocar los marcadores fijos de La California o la USM.
-// Usa StreamBuilder para listar en tiempo real las camionetas que se dirigen
-// hacia esa parada, mostrando: ID, sentido, asientos libres y ETA estimado.
-// El usuario puede tocar una fila para ir directo a la seleccion de asientos.
-// =============================================================================
-
-class _ModalInfoParada extends StatelessWidget {
-  // Nombre descriptivo de la parada (para mostrar en el encabezado)
-  final String nombreParada;
-  // Keyword para filtrar el campo 'destino' en Firestore (ej. 'usm' o 'california')
-  final String keywordDestino;
-  // Mapa de ETA ya calculado por el parent (evita recalcular aqui)
-  final Map<String, double?> etaMap;
-  // Callback cuando el usuario toca una fila de camioneta
-  final void Function(String camionetaId) onSeleccionarCamioneta;
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
 
   const _ModalInfoParada({
     required this.nombreParada,
@@ -2402,29 +1522,15 @@ class _ModalInfoParada extends StatelessWidget {
     required this.onSeleccionarCamioneta,
   });
 
-<<<<<<< HEAD
   int _asientosLibres(Map<String, dynamic> asientos) {
     int libres = 0;
     for (int i = 1; i <= 24; i++) {
       final d = asientos['$i'];
       if (d == null || (d is Map && d['ocupado'] != true)) libres++;
-=======
-  // Cuenta los asientos libres en el mapa de asientos del documento
-  int _asientosLibres(Map<String, dynamic> asientos) {
-    int libres = 0;
-    for (int i = 1; i <= 24; i++) {
-      final data = asientos['$i'];
-      if (data == null) {
-        libres++;
-      } else if (data is Map && data['ocupado'] != true) {
-        libres++;
-      }
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
     }
     return libres;
   }
 
-<<<<<<< HEAD
   String _formatEta(double? e) {
     if (e == null) return 'N/A';
     if (e < 1) return 'Llegando';
@@ -2435,20 +1541,6 @@ class _ModalInfoParada extends StatelessWidget {
     if (e == null) return Colors.grey;
     if (e < 5) return Colors.green.shade600;
     if (e < 15) return Colors.orange.shade600;
-=======
-  // Formatea el ETA en minutos como texto legible
-  String _formatEta(double? etaMin) {
-    if (etaMin == null) return 'N/A';
-    if (etaMin < 1) return 'Llegando';
-    return '~${etaMin.round()} min';
-  }
-
-  // Color del chip de ETA segun urgencia
-  Color _colorEta(double? etaMin) {
-    if (etaMin == null) return Colors.grey;
-    if (etaMin < 5) return Colors.green.shade600;
-    if (etaMin < 15) return Colors.orange.shade600;
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
     return Colors.red.shade600;
   }
 
@@ -2465,27 +1557,14 @@ class _ModalInfoParada extends StatelessWidget {
       maxChildSize: 0.85,
       builder: (_, scrollCtrl) {
         return Column(children: [
-<<<<<<< HEAD
-=======
-          // Handle de arrastre
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
           Container(
             margin: const EdgeInsets.only(top: 10, bottom: 6),
             width: 40,
             height: 4,
             decoration: BoxDecoration(
-<<<<<<< HEAD
                 color: Colors.grey.shade300,
                 borderRadius: BorderRadius.circular(2)),
           ),
-=======
-              color: Colors.grey.shade300,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-
-          // Encabezado de la parada
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
           Container(
             margin: const EdgeInsets.fromLTRB(16, 4, 16, 12),
             padding: const EdgeInsets.all(14),
@@ -2519,11 +1598,6 @@ class _ModalInfoParada extends StatelessWidget {
               ),
             ]),
           ),
-<<<<<<< HEAD
-=======
-
-          // Lista de camionetas en camino via StreamBuilder
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
@@ -2533,33 +1607,17 @@ class _ModalInfoParada extends StatelessWidget {
                 if (!snap.hasData) {
                   return const Center(child: CircularProgressIndicator());
                 }
-<<<<<<< HEAD
                 final docs = snap.data!.docs.where((doc) {
                   final data = doc.data() as Map<String, dynamic>;
                   final dest = (data['destino'] as String? ?? '').toLowerCase();
                   final estado = data['estado'] as String? ?? '';
                   return dest.contains(keywordDestino) &&
                       (estado == 'disponible' || estado == 'en_camino');
-=======
-
-                // Filtrar camionetas con destino a esta parada
-                // Solo se muestran las que estan disponibles o en camino
-                final docs = snap.data!.docs.where((doc) {
-                  final data = doc.data() as Map<String, dynamic>;
-                  final destino =
-                      (data['destino'] as String? ?? '').toLowerCase();
-                  final estado = data['estado'] as String? ?? '';
-                  final destinoCoincide = destino.contains(keywordDestino);
-                  final estadoValido =
-                      estado == 'disponible' || estado == 'en_camino';
-                  return destinoCoincide && estadoValido;
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
                 }).toList();
 
                 if (docs.isEmpty) {
                   return Center(
                     child: Column(
-<<<<<<< HEAD
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Icon(Icons.directions_bus_outlined,
@@ -2572,19 +1630,6 @@ class _ModalInfoParada extends StatelessWidget {
                                 color: Colors.grey.shade500, fontSize: 14),
                           ),
                         ]),
-=======
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.directions_bus_outlined,
-                            size: 48, color: Colors.grey.shade300),
-                        const SizedBox(height: 12),
-                        Text('No hay unidades en camino\nhacia esta parada',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                                color: Colors.grey.shade500, fontSize: 14)),
-                      ],
-                    ),
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
                   );
                 }
 
@@ -2599,21 +1644,13 @@ class _ModalInfoParada extends StatelessWidget {
                     final data = doc.data() as Map<String, dynamic>;
                     final id = doc.id;
                     final modelo = data['modelo'] as String? ?? 'Bus';
-<<<<<<< HEAD
                     final colorUnidad = data['color'] as String? ?? '';
-=======
-                    final color = data['color'] as String? ?? '';
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
                     final estado = data['estado'] as String? ?? '';
                     final destino = data['destino'] as String? ?? '';
                     final asientos =
                         (data['asientos'] as Map<String, dynamic>?) ?? {};
                     final libres = _asientosLibres(asientos);
                     final eta = etaMap[id];
-<<<<<<< HEAD
-=======
-
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
                     final colorEstado = estado == 'en_camino'
                         ? Colors.blue.shade600
                         : Colors.green.shade600;
@@ -2637,22 +1674,14 @@ class _ModalInfoParada extends StatelessWidget {
                           boxShadow: libres > 0
                               ? [
                                   BoxShadow(
-<<<<<<< HEAD
                                       color:
                                           Colors.black.withValues(alpha: 0.04),
-=======
-                                      color: Colors.black.withValues(alpha: 0.04),
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
                                       blurRadius: 6,
                                       offset: const Offset(0, 2))
                                 ]
                               : null,
                         ),
                         child: Row(children: [
-<<<<<<< HEAD
-=======
-                          // Icono del bus con color de estado
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
                           Container(
                             padding: const EdgeInsets.all(10),
                             decoration: BoxDecoration(
@@ -2663,11 +1692,6 @@ class _ModalInfoParada extends StatelessWidget {
                                 color: colorEstado, size: 24),
                           ),
                           const SizedBox(width: 12),
-<<<<<<< HEAD
-=======
-
-                          // Info principal
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
                           Expanded(
                             child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -2683,12 +1707,8 @@ class _ModalInfoParada extends StatelessWidget {
                                       padding: const EdgeInsets.symmetric(
                                           horizontal: 6, vertical: 2),
                                       decoration: BoxDecoration(
-<<<<<<< HEAD
                                         color:
                                             colorEstado.withValues(alpha: 0.12),
-=======
-                                        color: colorEstado.withValues(alpha: 0.12),
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
                                         borderRadius: BorderRadius.circular(6),
                                       ),
                                       child: Text(textoEstado,
@@ -2699,7 +1719,6 @@ class _ModalInfoParada extends StatelessWidget {
                                     ),
                                   ]),
                                   const SizedBox(height: 3),
-<<<<<<< HEAD
                                   Text('$modelo — $colorUnidad  |  $destino',
                                       style: TextStyle(
                                           fontSize: 11,
@@ -2718,55 +1737,6 @@ class _ModalInfoParada extends StatelessWidget {
                             Text('Sin cupo',
                                 style: TextStyle(
                                     fontSize: 11, color: Colors.grey.shade400)),
-=======
-                                  Text('$modelo - $color  |  $destino',
-                                      style: TextStyle(
-                                          fontSize: 11,
-                                          color: Colors.grey.shade600)),
-                                ]),
-                          ),
-
-                          // Columna ETA + asientos
-                          Column(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                // ETA
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 8, vertical: 3),
-                                  decoration: BoxDecoration(
-                                    color: _colorEta(eta).withValues(alpha: 0.1),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Text(
-                                    _formatEta(eta),
-                                    style: TextStyle(
-                                        fontSize: 11,
-                                        color: _colorEta(eta),
-                                        fontWeight: FontWeight.bold),
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                // Asientos libres
-                                Row(mainAxisSize: MainAxisSize.min, children: [
-                                  Icon(Icons.event_seat_outlined,
-                                      size: 12,
-                                      color: libres > 0
-                                          ? Colors.green.shade600
-                                          : Colors.red.shade400),
-                                  const SizedBox(width: 3),
-                                  Text(
-                                    '$libres libres',
-                                    style: TextStyle(
-                                        fontSize: 11,
-                                        color: libres > 0
-                                            ? Colors.green.shade700
-                                            : Colors.red.shade500,
-                                        fontWeight: FontWeight.w600),
-                                  ),
-                                ]),
-                              ]),
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
                         ]),
                       ),
                     );
@@ -2775,19 +1745,10 @@ class _ModalInfoParada extends StatelessWidget {
               },
             ),
           ),
-<<<<<<< HEAD
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
             child: Text(
               'ETA calculado a 40 km/h promedio. Puede variar según el tráfico.',
-=======
-
-          // Nota al pie
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
-            child: Text(
-              'ETA calculado a 40 km/h promedio. Puede variar segun el trafico.',
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
               style: TextStyle(fontSize: 10, color: Colors.grey.shade400),
               textAlign: TextAlign.center,
             ),
@@ -2796,7 +1757,6 @@ class _ModalInfoParada extends StatelessWidget {
       },
     );
   }
-<<<<<<< HEAD
 }
 
 // =============================================================================
@@ -2877,6 +1837,3 @@ class _IndicadorAsientos extends StatelessWidget {
     ]);
   }
 }
-=======
-}
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce

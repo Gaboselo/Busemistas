@@ -1,19 +1,10 @@
 // lib/providers/auth_provider.dart
-<<<<<<< HEAD
 // Busemistas USM v6
 // REGLA: sin tildes, sin enies, sin caracteres especiales en comentarios ni variables.
 // Cambios v6:
 //   - Nuevo rol 'empleado' agregado al enum RolUsuario
 //   - Metodos estaticos tarifaPasaje(rol) y tarifaPlan(rol) centralizan tarifas
 //     Estudiante: pasaje $1.00 / Plan Busemistas $14.00
-=======
-// Busemistas USM v5
-// REGLA: sin tildes, sin enies, sin caracteres especiales en comentarios ni variables.
-// Cambios v5:
-//   - Nuevo rol 'empleado' agregado al enum RolUsuario
-//   - Metodos estaticos tarifaPasaje(rol) y tarifaPlan(rol) centralizan tarifas
-//     Estudiante: pasaje $1.00 / Plan Usemista $14.00
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
 //     Empleado  : pasaje $0.50 / Plan Empleado  $7.00
 //     Visitante : pasaje $1.00 / sin plan mensual
 //   - verificarCedula consulta tambien 'lista_oficial_profesor_empleado'
@@ -74,11 +65,7 @@ class Tarifas {
       case RolUsuario.empleado:
         return 'Plan Empleado';
       case RolUsuario.estudiante:
-<<<<<<< HEAD
         return 'Plan Busemistas';
-=======
-        return 'Plan Usemista';
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
       default:
         return 'Sin Plan';
     }
@@ -152,14 +139,11 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-<<<<<<< HEAD
   void actualizarCamionetaAsignada(String id) {
     _camionetaAsignada = id;
     notifyListeners();
   }
 
-=======
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
   // ────────────────────────────────────────────────────────────────
   // PASO 1: Verificar cedula (antes del registro)
   // Retorna si es estudiante, conductor, ya registrado o no autorizado.

@@ -287,7 +287,8 @@ class _PerfilVistaState extends State<PerfilVista> {
                             color: Colors.green.withValues(alpha: 0.2),
                             borderRadius: BorderRadius.circular(10),
                             border: Border.all(
-                                color: Colors.greenAccent.withValues(alpha: 0.5)),
+                                color:
+                                    Colors.greenAccent.withValues(alpha: 0.5)),
                           ),
                           child: const Column(children: [
                             Icon(Icons.card_membership,

@@ -254,8 +254,7 @@ class _FormPaso1 extends StatelessWidget {
         const SizedBox(height: 12),
 
         // Selector de rol
-<<<<<<< HEAD
-// Selector de rol — 4 opciones en 2x2 grid
+        // Selector de rol — 4 opciones en 2x2 grid
         GridView.count(
           crossAxisCount: 2,
           shrinkWrap: true,
@@ -290,30 +289,6 @@ class _FormPaso1 extends StatelessWidget {
             ),
           ],
         ),
-=======
-        Row(children: [
-          _BotonRol(
-            label: 'Estudiante',
-            icono: Icons.school_rounded,
-            seleccionado: rolActual == RolUsuario.estudiante,
-            onTap: () => onSeleccionarRol(RolUsuario.estudiante),
-          ),
-          const SizedBox(width: 8),
-          _BotonRol(
-            label: 'Conductor',
-            icono: Icons.drive_eta_rounded,
-            seleccionado: rolActual == RolUsuario.conductor,
-            onTap: () => onSeleccionarRol(RolUsuario.conductor),
-          ),
-          const SizedBox(width: 8),
-          _BotonRol(
-            label: 'Visitante',
-            icono: Icons.badge_outlined,
-            seleccionado: rolActual == RolUsuario.visitante,
-            onTap: () => onSeleccionarRol(RolUsuario.visitante),
-          ),
-        ]),
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
         const SizedBox(height: 24),
 
         CampoTexto(
@@ -362,13 +337,8 @@ class _FormPaso1 extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-<<<<<<< HEAD
                   'Para Estudiantes, Conductores y Profesores/Empleados, el sistema '
                   'verificará tu cédula contra las listas institucionales de la USM '
-=======
-                  'Para Estudiantes y Conductores, el sistema verificara '
-                  'tu cedula contra las listas institucionales de la USM '
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
                   'antes de continuar.',
                   style: TextStyle(color: Colors.blue.shade800, fontSize: 12),
                 ),

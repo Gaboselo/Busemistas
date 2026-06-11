@@ -164,7 +164,8 @@ class _LoginVistaState extends State<LoginVista>
                         color: Colors.white.withValues(alpha: 0.15),
                         shape: BoxShape.circle,
                         border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.4), width: 2),
+                            color: Colors.white.withValues(alpha: 0.4),
+                            width: 2),
                         boxShadow: [
                           BoxShadow(
                               color: Colors.black.withValues(alpha: 0.3),
@@ -394,7 +395,8 @@ class _BotonQR extends StatelessWidget {
                         fontSize: 16)),
                 Text('Acceso rapido y seguro',
                     style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.75), fontSize: 12)),
+                        color: Colors.white.withValues(alpha: 0.75),
+                        fontSize: 12)),
               ],
             ),
           ),
@@ -520,7 +522,8 @@ class _SimuladorQRVistaState extends State<_SimuladorQRVista>
                     label: Text('Carnet C.I. $cedula',
                         style: const TextStyle(color: Colors.white70)),
                     style: OutlinedButton.styleFrom(
-                      side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
+                      side: BorderSide(
+                          color: Colors.white.withValues(alpha: 0.3)),
                       minimumSize: const Size.fromHeight(44),
                     ),
                   ),

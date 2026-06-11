@@ -1,17 +1,8 @@
 // lib/providers/camioneta_provider.dart
-<<<<<<< HEAD
-// Busemistas USM v5
-// REGLA: sin tildes, sin enies, sin caracteres especiales.
-// Cambios v5:
-//   - auto-inicializa 24 asientos via WriteBatch cuando
-//     el documento tiene menos de 24 nodos en el mapa de asientos.
-//   - sembrarUnidades(): crea unidad_01 y unidad_02 si no existen, para demo.
-=======
 // Busemistas USM v4
 // REGLA: sin tildes, sin enies, sin caracteres especiales.
 // Cambio principal: auto-inicializa 24 asientos via WriteBatch cuando
 // el documento tiene menos de 24 nodos en el mapa de asientos.
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
 
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -132,79 +123,6 @@ class CamionetaProvider extends ChangeNotifier {
     _sub = null;
   }
 
-<<<<<<< HEAD
-  // ── Sembrar unidades de demo si no existen ───────────────────────
-  // Llama esto una vez al arrancar la app (p.ej. en main.dart o initState).
-  // Crea unidad_01 (Hacia La California) y unidad_02 (Hacia la USM)
-  // para la demo con dos unidades activas yendo en sentidos opuestos.
-  Future<void> sembrarUnidades() async {
-    final col = _db.collection('camionetas');
-
-    final Map<String, Map<String, dynamic>> defaults = {
-      'unidad_01': {
-        'modelo': 'JAC',
-        'color': 'azul',
-        'patente': 'ABCD12',
-        'destino': 'Hacia La California',
-        'estado': 'disponible',
-        'activa': false,
-        'chofer': 'David Burguillos',
-        'latitud': 10.491360,
-        'longitud': -66.780178,
-        'trafico_denso': false,
-        'nivel_trafico': 'bajo',
-      },
-      'unidad_02': {
-        'modelo': 'Yutong',
-        'color': 'rojo',
-        'patente': 'LLPB45',
-        'destino': 'Hacia la USM',
-        'estado': 'disponible',
-        'activa': false,
-        'chofer': 'Alessandra Damico',
-        'latitud': 10.483376,
-        'longitud': -66.819402,
-        'trafico_denso': false,
-        'nivel_trafico': 'bajo',
-      },
-    };
-
-    for (final entry in defaults.entries) {
-      final docRef = col.doc(entry.key);
-      final snap = await docRef.get();
-      if (!snap.exists) {
-        final data = Map<String, dynamic>.from(entry.value);
-        data['asientos'] = _asientosVacios24();
-        data['ubicacion'] = GeoPoint((data['latitud'] as num).toDouble(),
-            (data['longitud'] as num).toDouble());
-        await docRef.set(data);
-        debugPrint('[Provider] Creada unidad demo: ${entry.key}');
-      } else {
-        // Si existe pero le faltan asientos, poblarlos
-        final existing = snap.data()!;
-        final asientos = (existing['asientos'] as Map<String, dynamic>?) ?? {};
-        if (asientos.length < 24) {
-          await _poblarAsientosSiFaltan(entry.key, asientos);
-        }
-      }
-    }
-  }
-
-  static Map<String, dynamic> _asientosVacios24() {
-    final m = <String, dynamic>{};
-    for (int i = 1; i <= 24; i++) {
-      m['$i'] = {
-        'ocupado': false,
-        'cedula_pasajero': '',
-        'nombre_pasajero': '',
-        'estado_pago': '',
-      };
-    }
-    return m;
-  }
-
-=======
->>>>>>> 270597324932842ceccb48803ec812f0fa20dcce
   @override
   void dispose() {
     detenerStream();
